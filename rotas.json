@@ -1,0 +1,4 @@
+{
+  "origens": ["GRU", "CGH", "VCP"],
+  "destinos": ["SSA", "REC", "FOR", "GIG", "SDU", "BSB", "CNF", "POA", "CWB", "FLN", "MCZ", "NAT", "BEL", "MAO", "SLZ", "JPA", "AJU", "VIX", "GYN"]
+}

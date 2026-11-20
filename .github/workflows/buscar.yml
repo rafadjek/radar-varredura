@@ -1,0 +1,89 @@
+name: buscar
+on:
+  workflow_dispatch:
+    inputs:
+      job: { description: "id da busca (criado pelo Worker)", required: true }
+      origem: { required: true }
+      destino: { required: true }
+      dias: { required: true, default: "20" }
+      margem: { required: true, default: "0" }
+
+permissions:
+  contents: read
+
+env:
+  WORKER_URL: ${{ secrets.WORKER_URL }}
+  INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+  JOB: ${{ inputs.job }}
+  ORIGEM: ${{ inputs.origem }}
+  DESTINO: ${{ inputs.destino }}
+  DIAS: ${{ inputs.dias }}
+  MARGEM: ${{ inputs.margem }}
+
+jobs:
+  ida:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" ida ida.json
+      - uses: actions/upload-artifact@v4
+        with: { name: ida, path: ida.json }
+
+  volta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" volta volta.json
+      - uses: actions/upload-artifact@v4
+        with: { name: volta, path: volta.json }
+
+  pares:
+    needs: [ida, volta]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      tem: ${{ steps.p.outputs.tem }}
+      matriz: ${{ steps.p.outputs.matriz }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { name: ida }
+      - uses: actions/download-artifact@v4
+        with: { name: volta }
+      - id: p
+        run: node scan/cli.mjs pares "$DIAS" "$MARGEM" ida.json volta.json
+
+  confirmar:
+    needs: pares
+    if: needs.pares.outputs.tem == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.pares.outputs.matriz) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "${{ matrix.ida }}" "${{ matrix.volta }}"
+
+  fim:
+    needs: [ida, volta, confirmar]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - env:
+          RESULTADO: ${{ (needs.ida.result == 'success' && needs.volta.result == 'success') && 'pronto' || 'erro' }}
+        run: node scan/cli.mjs etapa "$JOB" "$RESULTADO"

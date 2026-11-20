@@ -1,0 +1,8 @@
+{
+  "name": "radar-varredura",
+  "private": false,
+  "type": "module",
+  "description": "Leitor do Google Voos (Chrome sem interface, via GitHub Actions) para o RadarPassagens",
+  "scripts": { "test": "node --test test/" },
+  "license": "MIT"
+}

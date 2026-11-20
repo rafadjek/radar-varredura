@@ -1,0 +1,26 @@
+name: salvas
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WORKER_URL: ${{ secrets.WORKER_URL }}
+  INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+
+jobs:
+  salvas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        origem: [GRU, CGH, VCP]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - env:
+          ORIGEM: ${{ matrix.origem }}
+        run: node scan/cli.mjs salvas "$ORIGEM"

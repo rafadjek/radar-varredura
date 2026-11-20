@@ -1,0 +1,6 @@
+node_modules/
+*.log
+saida*.json
+ida.json
+volta.json
+.env
