@@ -30,6 +30,13 @@ test("mesesVazios acha o mês sem preço no meio do período", () => {
   for (const [mes, n] of [["2027-03", 31], ["2027-05", 31]]) for (let d = 1; d <= n; d++) dias[`${mes}-${String(d).padStart(2, "0")}`] = 500;
   assert.deepEqual(mesesVazios(dias), ["2027-04"]);
   assert.deepEqual(mesesVazios({}), []);
+  // meses do começo (antes da primeira data lida) também contam, o primeiro só pelos dias que restam
+  assert.deepEqual(mesesVazios({ "2027-01-05": 1, "2027-02-05": 1, "2027-03-05": 1 }, "2026-11-20").slice(0, 2), ["2026-11", "2026-12"]);
+  assert.deepEqual(mesesVazios({ "2026-12-31": 1, "2027-01-05": 1 }, "2026-11-29").includes("2026-11"), true);
+  const novembroParcial = {};
+  for (let d = 29; d <= 30; d++) novembroParcial[`2026-11-${d}`] = 1;
+  for (let d = 1; d <= 31; d++) { novembroParcial[`2026-12-${String(d).padStart(2, "0")}`] = 1; novembroParcial[`2027-01-${String(d).padStart(2, "0")}`] = 1; }
+  assert.deepEqual(mesesVazios(novembroParcial, "2026-11-29"), []);
 });
 
 test("adicionarDias atravessa mês e ano", () => {
