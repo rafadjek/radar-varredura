@@ -30,7 +30,12 @@ async function calendario([job, origem, destino, sentido, arquivo]) {
 
 // pares <dias> <margem> <ida.json> <volta.json>  -> escreve matriz e tem em $GITHUB_OUTPUT
 function pares([dias, margem, arqIda, arqVolta]) {
-  v.inteiro(dias, 1, 35, "dias"); v.inteiro(margem, 0, 10, "margem");
+  v.inteiro(dias, 0, 35, "dias"); v.inteiro(margem, 0, 10, "margem");
+  if (Number(dias) === 0) { // busca sem duração (ex.: só ida): não há par para confirmar
+    const vazio = "tem=false\nmatriz={\"include\":[]}\n";
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, vazio); else console.log(vazio);
+    return;
+  }
   const ida = JSON.parse(readFileSync(arqIda, "utf8")).dias;
   const volta = JSON.parse(readFileSync(arqVolta, "utf8")).dias;
   const melhores = melhoresPares(ida, volta, Number(dias), Number(margem), 3);
