@@ -40,5 +40,5 @@ export async function abrirChrome({ porta = 9333, bin = process.env.CHROME_BIN |
   const navegar = (url) => cmd("Page.navigate", { url });
   const recarregar = () => cmd("Page.reload");
   const fechar = () => { try { ws.close(); } catch { /* já fechado */ } proc.kill(); };
-  return { avaliar, navegar, recarregar, fechar };
+  return { avaliar, navegar, recarregar, fechar, cmd };
 }
