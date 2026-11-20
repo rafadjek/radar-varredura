@@ -1,4 +1,5 @@
 import { dormir } from "./chrome.mjs";
+import { rotaConfere } from "./pagina.mjs";
 
 // Funções que rodam DENTRO da página do Google Voos (por isso não usam nada deste arquivo).
 function temAba() {
@@ -15,8 +16,8 @@ function abrirSeletor() {
 function lerCelulas() {
   return [...document.querySelectorAll("[data-iso]")].map((e) => {
     const p = e.querySelector('[aria-label*="Reais brasileiros"]');
-    const m = p && p.getAttribute("aria-label").match(/([0-9]+) Reais/);
-    return [e.getAttribute("data-iso"), m ? Number(m[1]) : null];
+    const m = p && p.getAttribute("aria-label").match(/([0-9][0-9.]*) Reais/);
+    return [e.getAttribute("data-iso"), m ? Number(m[1].split(".").join("")) : null];
   });
 }
 function avancar() {
@@ -82,6 +83,7 @@ export async function lerCalendario(chrome, origem, destino, { log = () => {}, t
     let ok = false;
     for (let i = 0; i < 45 && !ok; i++) { await dormir(1000); ok = await chrome.avaliar(temAba); }
     if (!ok || !(await chrome.avaliar(abrirSeletor))) { log(`${origem}>${destino}: tentativa ${t} sem resultados do Google`); continue; }
+    if (!(await chrome.avaliar(rotaConfere, origem, destino))) { log(`${origem}>${destino}: a página do Google não é desta rota, tentativa ${t} descartada`); continue; }
     let n = await esperarMes(chrome, 0);
     for (let pag = 0; pag < 12; pag++) {
       for (const [iso, p] of await chrome.avaliar(lerCelulas)) if (p !== null) dias[iso] = p;

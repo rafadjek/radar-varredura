@@ -10,14 +10,6 @@ on:
 permissions:
   contents: read
 
-env:
-  WORKER_URL: ${{ secrets.WORKER_URL }}
-  INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-  JOB: ${{ inputs.job }}
-  ORIGEM: ${{ inputs.origem }}
-  DESTINO: ${{ inputs.destino }}
-  PARES: ${{ inputs.pares }}
-
 jobs:
   preparar:
     runs-on: ubuntu-latest
@@ -29,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - id: m
+        env:
+          PARES: ${{ inputs.pares }}
         run: node scan/cli.mjs matriz-pares "$PARES"
 
   confirmar:
@@ -42,7 +36,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "${{ matrix.ida }}" "${{ matrix.volta }}"
+      - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
+          ORIGEM: ${{ inputs.origem }}
+          DESTINO: ${{ inputs.destino }}
+          IDA: ${{ matrix.ida }}
+          VOLTA: ${{ matrix.volta }}
+        run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "$IDA" "$VOLTA"
 
   fim:
     needs: confirmar
@@ -54,5 +56,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
           RESULTADO: ${{ needs.confirmar.result == 'success' && 'pronto' || 'erro' }}
         run: node scan/cli.mjs etapa "$JOB" "$RESULTADO"

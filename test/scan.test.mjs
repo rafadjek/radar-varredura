@@ -4,6 +4,26 @@ import { adicionarDias, melhoresPares } from "../scan/pares.mjs";
 import { postar } from "../scan/enviar.mjs";
 import { urlBusca } from "../scan/confirmar.mjs";
 import { urlSoIda, mesesVazios } from "../scan/calendario.mjs";
+import * as v from "../scan/validar.mjs";
+
+test("validar recusa entradas fora do formato", () => {
+  assert.equal(v.iata("GRU"), "GRU");
+  assert.throws(() => v.iata("gru"), /3 letras/);
+  assert.throws(() => v.iata("GRU; rm -rf /"), /3 letras/);
+  assert.equal(v.data("2027-02-19"), "2027-02-19");
+  assert.throws(() => v.data("2027-02-19$(id)"), /AAAA-MM-DD/);
+  assert.throws(() => v.job("b-xyz"), /job/);
+  assert.equal(v.job("b-0123456789ab"), "b-0123456789ab");
+  assert.equal(v.job("salvas-2026-11-20"), "salvas-2026-11-20");
+  assert.equal(v.inteiro("20", 1, 35, "dias"), 20);
+  assert.throws(() => v.inteiro("99", 1, 35, "dias"), /dias/);
+});
+
+test("validar.pares aceita até 3 e volta vazia, recusa lixo", () => {
+  assert.deepEqual(v.pares("2027-02-19|2027-03-11,2027-02-21|"), [{ ida: "2027-02-19", volta: "2027-03-11" }, { ida: "2027-02-21", volta: "" }]);
+  assert.throws(() => v.pares("2027-02-19|x"), /volta/);
+  assert.throws(() => v.pares("2027-02-19|2027-03-11,a|b,c|d,e|f"), /1 a 3|pares/);
+});
 
 test("mesesVazios acha o mês sem preço no meio do período", () => {
   const dias = {};

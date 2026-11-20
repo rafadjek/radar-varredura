@@ -11,15 +11,6 @@ on:
 permissions:
   contents: read
 
-env:
-  WORKER_URL: ${{ secrets.WORKER_URL }}
-  INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-  JOB: ${{ inputs.job }}
-  ORIGEM: ${{ inputs.origem }}
-  DESTINO: ${{ inputs.destino }}
-  DIAS: ${{ inputs.dias }}
-  MARGEM: ${{ inputs.margem }}
-
 jobs:
   ida:
     runs-on: ubuntu-latest
@@ -28,7 +19,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" ida ida.json
+      - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
+          ORIGEM: ${{ inputs.origem }}
+          DESTINO: ${{ inputs.destino }}
+        run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" ida ida.json
       - uses: actions/upload-artifact@v4
         with: { name: ida, path: ida.json }
 
@@ -39,7 +36,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" volta volta.json
+      - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
+          ORIGEM: ${{ inputs.origem }}
+          DESTINO: ${{ inputs.destino }}
+        run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" volta volta.json
       - uses: actions/upload-artifact@v4
         with: { name: volta, path: volta.json }
 
@@ -59,6 +62,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: volta }
       - id: p
+        env:
+          DIAS: ${{ inputs.dias }}
+          MARGEM: ${{ inputs.margem }}
         run: node scan/cli.mjs pares "$DIAS" "$MARGEM" ida.json volta.json
 
   confirmar:
@@ -73,7 +79,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "${{ matrix.ida }}" "${{ matrix.volta }}"
+      - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
+          ORIGEM: ${{ inputs.origem }}
+          DESTINO: ${{ inputs.destino }}
+          IDA: ${{ matrix.ida }}
+          VOLTA: ${{ matrix.volta }}
+        run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "$IDA" "$VOLTA"
 
   fim:
     needs: [ida, volta, confirmar]
@@ -85,5 +99,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          JOB: ${{ inputs.job }}
           RESULTADO: ${{ (needs.ida.result == 'success' && needs.volta.result == 'success') && 'pronto' || 'erro' }}
         run: node scan/cli.mjs etapa "$JOB" "$RESULTADO"

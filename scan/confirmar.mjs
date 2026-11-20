@@ -1,11 +1,12 @@
 import { dormir } from "./chrome.mjs";
+import { rotaConfere, datasConferem } from "./pagina.mjs";
 
 function menorPrecoAba() {
   const n = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const aba = [...document.querySelectorAll("[role=tab]")].find((e) => n(e.textContent).startsWith("menores pre"));
   const preco = aba && aba.querySelector('[aria-label$="Reais brasileiros"]');
-  const m = preco && preco.getAttribute("aria-label").match(/^([0-9]+)/);
-  return m ? Number(m[1]) : null;
+  const m = preco && preco.getAttribute("aria-label").match(/^([0-9][0-9.]*) Reais brasileiros$/);
+  return m ? Number(m[1].split(".").join("")) : null;
 }
 
 export function urlBusca({ origem, destino, ida, volta }) {
@@ -27,7 +28,12 @@ export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, limiteMs 
       await dormir(500);
       const v = await chrome.avaliar(menorPrecoAba);
       if (v !== ultimo) { ultimo = v; mudou = Date.now(); }
-      if (ultimo !== null && Date.now() - mudou >= estavelMs) return ultimo;
+      if (ultimo !== null && Date.now() - mudou >= estavelMs) {
+        const certa = (await chrome.avaliar(rotaConfere, busca.origem, busca.destino)) && (await chrome.avaliar(datasConferem, busca.ida, busca.volta || ""));
+        if (certa) return ultimo;
+        log(`${busca.origem}>${busca.destino} ${busca.ida}: a página do Google não é da rota/datas pedidas, descartado`);
+        break;
+      }
     }
     log(`${busca.origem}>${busca.destino} ${busca.ida}: tentativa ${t} sem preço estável`);
   }
