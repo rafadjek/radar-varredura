@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { criarLotes, verificar } from "../scan/verificar.mjs";
+import { criarLotes, verificar, deveParar, MIN_LIDOS } from "../scan/verificar.mjs";
 import { pegar } from "../scan/enviar.mjs";
 import { ErroBloqueio } from "../scan/navegador.mjs";
 import * as v from "../scan/validar.mjs";
@@ -56,13 +56,13 @@ test("lotes: envios nunca se atropelam (um lote por vez, na ordem)", async () =>
   assert.deepEqual(ordem, ["2027-03-01", "2027-03-03", "2027-03-05", "2027-03-07"]);
 });
 
-function ambienteVerificar({ pares, tipo = "verificar", ler }) {
+function ambienteVerificar({ pares, tipo = "verificar", ler, extra = {} }) {
   const posts = []; const etapas = [];
   return {
     posts, etapas,
     args: {
       job: "v-0123456789ab", origem: "GRU", destino: "JDO", log: () => {}, leitura: "pc", abas: 2,
-      pegarJob: async (c) => { assert.equal(c, "/api/varredura/job/v-0123456789ab"); return { tipo, origem: "GRU", destino: "JDO", pares }; },
+      pegarJob: async (c) => { assert.equal(c, "/api/varredura/job/v-0123456789ab"); return { tipo, origem: "GRU", destino: "JDO", pares, ...extra }; },
       enviar: async (caminho, corpo) => { posts.push({ caminho, corpo }); return { ok: true }; },
       avisar: async (job, nome, detalhe) => { etapas.push([nome, detalhe]); },
       abrir: async () => ({ novaAba: async () => ({ fechar: async () => {} }), fechar: async () => { posts.push({ fechou: true }); } }),
@@ -114,4 +114,43 @@ test("pegar: GET com segredo, repete em falha e não repete 4xx", async () => {
   await assert.rejects(() => pegar("/x", { fetcher: f404, env: { WORKER_URL: "https://w.test" }, esperar: async () => {} }), /404/);
   assert.equal(f404.n, 1);
   await assert.rejects(() => pegar("/x", { env: {} }), /WORKER_URL/);
+});
+
+// ---------- parada antecipada (modo "melhores") ----------
+const est = (totais) => new Map(pares30.map((p, i) => [p, totais[i]]));
+const lidosDe = (precos) => precos.map((preco, i) => ({ par: { ida: `2027-03-${i + 1}`, volta: "" }, preco }));
+const resta = (de, ate) => pares30.slice(de, ate).map((p) => { const [ida, volta] = p.split("|"); return { ida, volta }; });
+
+test("deveParar: só depois do mínimo de leituras e só se o mais barato dos restantes não tem como vencer", () => {
+  const estimativas = est(pares30.map((_, i) => 500 + i * 10));
+  const restantes = resta(12, 30); // estimativas de 620 em diante
+  assert.equal(MIN_LIDOS, 12);
+  assert.equal(deveParar({ lidos: lidosDe(Array(11).fill(300)), restantes, estimativas }), false, "menos que o mínimo");
+  assert.equal(deveParar({ lidos: lidosDe(Array(12).fill(300)), restantes, estimativas }), true, "620 x 0,70 = 434 >= 300");
+  assert.equal(deveParar({ lidos: lidosDe(Array(12).fill(450)), restantes, estimativas }), false, "434 < 450: o próximo ainda poderia ganhar");
+  assert.equal(deveParar({ lidos: lidosDe(Array(12).fill(434)), restantes, estimativas }), true, "empate no limite");
+  assert.equal(deveParar({ lidos: lidosDe(Array(12).fill(300)), restantes: [], estimativas }), false, "nada sobrou");
+  assert.equal(deveParar({ lidos: lidosDe(Array(12).fill(300)), restantes, estimativas: null }), false, "modo janela: sem estimativas, nunca para");
+});
+
+test("verificar (melhores): para cedo quando os que sobraram não têm como vencer, e ainda diz 'pronto'", async () => {
+  const totais = pares30.map((_, i) => 500 + i * 10);
+  const e = ambienteVerificar({ pares: pares30, extra: { modo: "melhores", totais }, ler: async () => 300 });
+  const lidos = await verificar(e.args);
+  assert.ok(lidos.length >= 12 && lidos.length < 30, `leu ${lidos.length}`);
+  const entregues = e.posts.filter((p) => p.caminho === "/api/varredura/lote").flatMap((l) => l.corpo.itens);
+  assert.equal(entregues.length, lidos.length, "tudo que foi lido foi entregue");
+  assert.deepEqual(e.etapas.map((x) => x[0]), ["confirmando", "pronto"]);
+});
+
+test("verificar (melhores): preço real perto da estimativa lê mais pares antes de parar (até a estimativa passar do melhor ÷ 0,70)", async () => {
+  const totais = pares30.map((_, i) => 500 + i * 10);
+  const e = ambienteVerificar({ pares: pares30, extra: { modo: "melhores", totais }, ler: async (aba, b) => 0.95 * totais[pares30.findIndex((p) => p.startsWith(b.ida))] });
+  const lidos = await verificar(e.args);
+  assert.ok(lidos.length >= 18 && lidos.length < 30, `leu ${lidos.length}`); // melhor 475: só para quando a estimativa restante >= 679 (18º par)
+});
+
+test("verificar (janela): sem estimativas lê tudo, como antes", async () => {
+  const e = ambienteVerificar({ pares: pares30, ler: async () => 100 });
+  assert.equal((await verificar(e.args)).length, 30);
 });

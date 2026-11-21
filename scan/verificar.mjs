@@ -8,6 +8,19 @@ import * as v from "./validar.mjs";
 // para a página ver os primeiros preços logo e o KV/D1 receberem poucas gravações.
 
 export const TAMANHO_LOTE = 12;
+export const ABAS_VERIFICAR = 6; // medido na F3.0: 6 abas leram tudo sem captcha (~5 s por par de vazão)
+export const MIN_LIDOS = 12; // nunca para antes de ler pelo menos isso
+export const DESCONTO_MAX = 0.30; // a maior diferença vista entre a estimativa do calendário e o preço real de agência (VCP>REC: 1404 → 982)
+
+// Parada antecipada da verificação "melhores": os pares que sobraram só podem vencer o melhor preço lido se a oferta
+// de agência for mais de DESCONTO_MAX abaixo da estimativa do calendário. Depois de MIN_LIDOS leituras, se nem o mais
+// barato dos que sobraram chega lá, ler mais é gasto do IP e do tempo. Sem estimativas (modo janela), nunca para.
+export function deveParar({ lidos, restantes, estimativas, minimo = MIN_LIDOS, desconto = DESCONTO_MAX }) {
+  if (!estimativas || lidos.length < minimo || !restantes.length) return false;
+  const melhor = Math.min(...lidos.map((l) => l.preco));
+  const menorEstimativa = Math.min(...restantes.map((p) => estimativas.get(`${p.ida}|${p.volta || ""}`) ?? 0));
+  return menorEstimativa * (1 - desconto) >= melhor;
+}
 export const ESPERA_LOTE_MS = 8000;
 
 // Junta itens e os entrega em lote quando chega a `tamanho` ou depois de `esperaMs` desde o primeiro pendente.
@@ -42,12 +55,14 @@ export function criarLotes({ enviarLote, enviarUm, tamanho = TAMANHO_LOTE, esper
 }
 
 // verificar <job> <origem> <destino>
-export async function verificar({ job, origem, destino, log, leitura, abas = Number(process.env.ABAS) || ABAS_PADRAO, pegarJob = pegar, enviar = postar, avisar = etapa, abrir = abrirNavegador, ler }) {
+export async function verificar({ job, origem, destino, log, leitura, abas = Number(process.env.ABAS) || ABAS_VERIFICAR, pegarJob = pegar, enviar = postar, avisar = etapa, abrir = abrirNavegador, ler }) {
   v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
   const info = await pegarJob(`/api/varredura/job/${job}`);
   if (info.tipo !== "verificar" || info.origem !== origem || info.destino !== destino) throw new Error("job não é uma verificação desta rota");
   const pares = (info.pares || []).map((p) => { const [ida, volta = ""] = p.split("|"); v.data(ida, "ida"); if (volta) v.data(volta, "volta"); return { ida, volta }; });
-  log(`verificar ${origem}>${destino}: ${pares.length} pares, ${abas} abas`);
+  const estimativas = info.modo === "melhores" && Array.isArray(info.totais) && info.totais.length === pares.length
+    ? new Map(pares.map((p, i) => [`${p.ida}|${p.volta}`, info.totais[i]])) : null;
+  log(`verificar ${origem}>${destino}: ${pares.length} pares, ${abas} abas${estimativas ? ", parada antecipada ligada" : ""}`);
   await avisar(job, "confirmando").catch(() => {});
   const montar = (par, preco) => ({ origem, destino, ida: par.ida, volta: par.volta || "", preco, lidoEm: new Date().toISOString(), leitura });
   const lotes = criarLotes({
@@ -58,14 +73,14 @@ export async function verificar({ job, origem, destino, log, leitura, abas = Num
   const navegador = await abrir();
   let lidos = [];
   try {
-    lidos = await lerPrecos(navegador, { origem, destino, pares, abas, log, ...(ler ? { ler, escalonarMs: 0 } : {}), aoLer: (par, preco) => lotes.add(montar(par, preco)) });
+    lidos = await lerPrecos(navegador, { origem, destino, pares, abas, log, escalonarMs: 150, ...(ler ? { ler, escalonarMs: 0 } : {}), parar: ({ lidos: ja, fila }) => deveParar({ lidos: ja, restantes: fila, estimativas }), aoLer: (par, preco) => lotes.add(montar(par, preco)) });
   } catch (e) {
     await lotes.esvaziar();
     await avisar(job, "erro", e.name === "ErroBloqueio" ? "google_bloqueou" : String(e.message).slice(0, 190)).catch(() => {});
     throw e;
   } finally { await navegador.fechar(); }
   await lotes.esvaziar();
-  log(`verificar: ${lidos.length} de ${pares.length} pares lidos`);
+  log(`verificar: ${lidos.length} de ${pares.length} pares lidos${lidos.length < pares.length ? " (parou cedo ou houve falhas)" : ""}`);
   await avisar(job, "pronto").catch(() => {});
   return lidos;
 }

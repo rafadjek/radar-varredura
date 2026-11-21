@@ -4,7 +4,6 @@ import { lerPrecos, ABAS_PADRAO } from "./leitor.mjs";
 import { lerCalendario } from "./calendario.mjs";
 import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
-import { melhoresPares, paresParaConfirmar, paresDeSugestao, vizinhos } from "./pares.mjs";
 
 export const EXTRA_DIAS = 4; // a "sugestão" olha até margem + 4 dias além do pedido
 
@@ -72,40 +71,8 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
     lerPerna({ job, origem, destino, sentido: "volta", log, leitura }),
   ]);
   for (const x of [ida, volta]) if (x.status === "rejected") { await avisar(job, "erro", x.reason.message.slice(0, 190)); throw x.reason; }
-  if (dias > 0) {
-    const [iv, vv] = [ida.value, volta.value];
-    const dentro = paresParaConfirmar(melhoresPares(iv, vv, dias, margem, 80));
-    const fora = paresDeSugestao(iv, vv, dias, margem, EXTRA_DIAS).map((p) => ({ ida: p.ida, volta: p.volta, total: p.total }));
-    // 1ª leva (o que a página mostra logo): 3 melhores da janela + o melhor fora dela. Demais em levas de 3 (calendário
-    // chapado: ver paresParaConfirmar); a página não espera por elas.
-    const primeira = dentro.slice(0, 3);
-    if (fora.length) primeira.push(fora[0]);
-    const resto = [...dentro.slice(3), ...fora.slice(1)];
-    const levas = [primeira];
-    for (let i = 0; i < resto.length; i += 3) levas.push(resto.slice(i, i + 3));
-    log(`pares a confirmar: ${JSON.stringify(levas)}`);
-    await avisar(job, "confirmando");
-    const lidos = [];
-    for (const leva of levas) {
-      if (!leva.length) continue;
-      try { lidos.push(...await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura })); }
-      catch (e) { // o calendário já foi entregue; sem confirmação a página fica com o estimado
-        log(`aviso: ${e.message}`);
-        if (e.name === "ErroBloqueio") { await avisar(job, "erro", "google_bloqueou"); return; } // disjuntor: nada de insistir
-      }
-    }
-    // Refino: o preço de agência muda pouco de um dia para o vizinho; olha ao redor do melhor par da janela pedida.
-    const minP = Math.max(1, dias - margem);
-    const naJanela = lidos.filter((x) => { const n = Math.round((new Date(x.par.volta) - new Date(x.par.ida)) / 86400000); return n >= minP && n <= dias + margem; });
-    if (dentro.length > 5 && naJanela.length >= 2) { // só no calendário chapado
-      const melhor = naJanela.reduce((m, x) => (x.preco < m.preco ? x : m));
-      const perto = vizinhos(iv, vv, melhor.par, lidos.map((x) => x.par), dias, margem, 0, 3);
-      if (perto.length) {
-        log(`refino ao redor de ${melhor.par.ida}>${melhor.par.volta} (R$ ${melhor.preco}): ${JSON.stringify(perto)}`);
-        try { await confirmarEmParalelo({ job, origem, destino, pares: perto, log, leitura }); }
-        catch (e) { log(`aviso: ${e.message}`); if (e.name === "ErroBloqueio") { await avisar(job, "erro", "google_bloqueou"); return; } }
-      }
-    }
-  }
+  // Desde a F3.3 a busca só entrega o calendário. Os preços reais de agência vêm da verificação automática dos
+  // melhores candidatos (GET /api/verificar?melhores=N, job verificar.yml): 6 abas, do mais barato ao mais caro,
+  // parando cedo. Antes este job confirmava aqui, em levas sequenciais de 3.
   await avisar(job, "pronto");
 }

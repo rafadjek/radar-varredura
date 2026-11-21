@@ -61,7 +61,7 @@ export async function lerPrecoNaAba(aba, busca, { limiteMs = 60000, tentativas =
 // Lê vários pares ao mesmo tempo: `abas` abas num navegador só, cada uma pegando o próximo par da fila.
 // `aoLer(par, preco)` roda assim que um par é lido (é onde o preço vai para o Worker). Se uma aba toma
 // "sorry"/captcha, as outras param e o erro sobe (disjuntor). Devolve [{ par, preco }] só dos pares lidos e entregues.
-export async function lerPrecos(navegador, { origem, destino, pares, abas = ABAS_PADRAO, log = () => {}, aoLer, ler = lerPrecoNaAba, escalonarMs = 400 }) {
+export async function lerPrecos(navegador, { origem, destino, pares, abas = ABAS_PADRAO, log = () => {}, aoLer, ler = lerPrecoNaAba, escalonarMs = 400, parar }) {
   const fila = [...pares];
   const lidos = [];
   let bloqueio = null;
@@ -72,6 +72,7 @@ export async function lerPrecos(navegador, { origem, destino, pares, abas = ABAS
     try { aba = await navegador.novaAba(); } catch (e) { log(`aviso: não consegui abrir a aba ${k + 1}: ${e.message}`); return; } // as outras abas seguem
     try {
       while (!bloqueio) {
+        if (parar && parar({ lidos, fila })) break; // ex.: os que sobraram não têm como ser o menor preço
         const par = fila.shift();
         if (!par) break;
         try {
