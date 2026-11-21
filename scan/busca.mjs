@@ -1,8 +1,8 @@
-import { abrirChrome } from "./chrome.mjs";
+﻿import { abrirChrome } from "./chrome.mjs";
 import { lerCalendario } from "./calendario.mjs";
 import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
-import { melhoresPares, melhorParForaDaJanela } from "./pares.mjs";
+import { melhoresPares, melhorParForaDaJanela, paresParaConfirmar } from "./pares.mjs";
 
 export const EXTRA_DIAS = 4; // a "sugestão" olha até margem + 4 dias além do pedido
 
@@ -51,16 +51,18 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
   ]);
   for (const x of [ida, volta]) if (x.status === "rejected") { await avisar(job, "erro", x.reason.message.slice(0, 190)); throw x.reason; }
   if (dias > 0) {
-    const dentro = melhoresPares(ida.value, volta.value, dias, margem, 5);
+    const dentro = paresParaConfirmar(melhoresPares(ida.value, volta.value, dias, margem, 80));
     const fora = melhorParForaDaJanela(ida.value, volta.value, dias, margem, EXTRA_DIAS);
-    // 1ª leva (o que a página mostra logo): 3 melhores da janela + o melhor fora dela. 2ª leva: 4º e 5º da janela, para a
-    // sugestão achar o par realmente mais barato; a página não espera por ela.
+    // 1ª leva (o que a página mostra logo): 3 melhores da janela + o melhor fora dela. Demais em levas de 3 (calendário
+    // chapado: ver paresParaConfirmar); a página não espera por elas.
     const primeira = dentro.slice(0, 3);
     if (fora) primeira.push({ ida: fora.ida, volta: fora.volta, total: fora.total });
-    const segunda = dentro.slice(3);
-    log(`pares a confirmar: ${JSON.stringify(primeira)} e depois ${JSON.stringify(segunda)}`);
+    const resto = dentro.slice(3);
+    const levas = [primeira];
+    for (let i = 0; i < resto.length; i += 3) levas.push(resto.slice(i, i + 3));
+    log(`pares a confirmar: ${JSON.stringify(levas)}`);
     await avisar(job, "confirmando");
-    for (const leva of [primeira, segunda]) {
+    for (const leva of levas) {
       if (!leva.length) continue;
       try { await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura }); }
       catch (e) { log(`aviso: ${e.message}`); } // o calendário já foi entregue; sem confirmação a página fica com o estimado

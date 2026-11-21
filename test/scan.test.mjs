@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adicionarDias, melhoresPares, melhorParForaDaJanela } from "../scan/pares.mjs";
+import { adicionarDias, melhoresPares, melhorParForaDaJanela, paresParaConfirmar } from "../scan/pares.mjs";
 import { postar } from "../scan/enviar.mjs";
 import { urlBusca } from "../scan/confirmar.mjs";
 import { urlSoIda, mesesVazios } from "../scan/calendario.mjs";
@@ -117,4 +117,16 @@ test("pares nunca passam de 35 dias (limite do Worker)", () => {
   const volta = { "2027-04-05": 100, "2027-04-10": 50 }; // 35 e 40 dias
   assert.deepEqual(melhoresPares(ida, volta, 34, 3, 3).map((p) => p.volta), ["2027-04-05"]);
   assert.deepEqual(melhorParForaDaJanela(ida, volta, 30, 2, 8), { ida: "2027-03-01", volta: "2027-04-05", total: 200, dias: 35 });
+});
+
+test("paresParaConfirmar: calendário diferenciado confirma só os 5 melhores", () => {
+  const p = [100, 120, 140, 160, 180, 200, 220].map((total, i) => ({ ida: `2027-03-${String(10 + i).padStart(2, "0")}`, volta: "2027-04-01", total }));
+  assert.equal(paresParaConfirmar(p).length, 5);
+});
+
+test("paresParaConfirmar: calendário chapado espalha até 9 datas diferentes", () => {
+  const p = Array.from({ length: 30 }, (_, i) => ({ ida: adicionarDias("2027-03-01", i), volta: "2027-04-20", total: 8294 }));
+  const r = paresParaConfirmar(p);
+  assert.equal(r.length, 9);
+  for (let i = 1; i < r.length; i++) assert.ok((new Date(r[i].ida) - new Date(r[i - 1].ida)) / 86400000 >= 3);
 });
