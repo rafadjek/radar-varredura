@@ -24,12 +24,14 @@ export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, limiteMs 
     const inicio = Date.now();
     let ultimo = null;
     let mudou = Date.now();
+    const trajetoria = [];
     while (Date.now() - inicio < limiteMs) {
       await dormir(500);
       const v = await chrome.avaliar(menorPrecoAba);
-      if (v !== ultimo) { ultimo = v; mudou = Date.now(); }
+      if (v !== ultimo) { ultimo = v; mudou = Date.now(); trajetoria.push(`${v}@${((Date.now() - inicio) / 1000).toFixed(1)}s`); }
       if (ultimo !== null && Date.now() - mudou >= estavelMs) {
         const certa = (await chrome.avaliar(rotaConfere, busca.origem, busca.destino)) && (await chrome.avaliar(datasConferem, busca.ida, busca.volta || ""));
+        log(`${busca.origem}>${busca.destino} ${busca.ida}: valor do Google ao longo do tempo: ${trajetoria.join(" -> ")}`);
         if (certa) return ultimo;
         log(`${busca.origem}>${busca.destino} ${busca.ida}: a página do Google não é da rota/datas pedidas, descartado`);
         break;

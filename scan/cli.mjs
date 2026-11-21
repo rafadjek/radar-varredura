@@ -54,8 +54,8 @@ async function confirmar([job, origem, destino, ida, volta]) {
     const v = volta && volta !== "-" ? volta : "";
     const preco = await lerMenorPreco(chrome, { origem, destino, ida, volta: v }, { log });
     if (preco === null) throw new Error("não consegui ler o menor preço");
-    await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida, volta: v, preco, lidoEm: agora() });
     log(`confirmado ${origem}>${destino} ${ida} ${v}: R$ ${preco}`);
+    await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida, volta: v, preco, lidoEm: agora() });
   } finally { chrome.fechar(); }
 }
 
