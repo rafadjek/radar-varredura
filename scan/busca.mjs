@@ -2,7 +2,7 @@
 import { lerCalendario } from "./calendario.mjs";
 import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
-import { melhoresPares, melhorParForaDaJanela, paresParaConfirmar } from "./pares.mjs";
+import { melhoresPares, paresParaConfirmar, paresDeSugestao, vizinhos } from "./pares.mjs";
 
 export const EXTRA_DIAS = 4; // a "sugestão" olha até margem + 4 dias além do pedido
 
@@ -36,8 +36,8 @@ async function confirmarUm({ job, origem, destino, par, log, leitura }) {
 export async function confirmarEmParalelo({ job, origem, destino, pares, log, leitura }) {
   const r = await Promise.allSettled(pares.map((par) => confirmarUm({ job, origem, destino, par, log, leitura })));
   r.forEach((x) => { if (x.status === "rejected") log(`aviso: ${x.reason.message}`); });
-  const ok = r.filter((x) => x.status === "fulfilled").length;
-  if (!ok) throw new Error("nenhuma confirmação deu certo");
+  const ok = r.map((x, i) => (x.status === "fulfilled" ? { par: pares[i], preco: x.value } : null)).filter(Boolean);
+  if (!ok.length) throw new Error("nenhuma confirmação deu certo");
   return ok;
 }
 
@@ -51,21 +51,34 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
   ]);
   for (const x of [ida, volta]) if (x.status === "rejected") { await avisar(job, "erro", x.reason.message.slice(0, 190)); throw x.reason; }
   if (dias > 0) {
-    const dentro = paresParaConfirmar(melhoresPares(ida.value, volta.value, dias, margem, 80));
-    const fora = melhorParForaDaJanela(ida.value, volta.value, dias, margem, EXTRA_DIAS);
+    const [iv, vv] = [ida.value, volta.value];
+    const dentro = paresParaConfirmar(melhoresPares(iv, vv, dias, margem, 80));
+    const fora = paresDeSugestao(iv, vv, dias, margem, EXTRA_DIAS).map((p) => ({ ida: p.ida, volta: p.volta, total: p.total }));
     // 1ª leva (o que a página mostra logo): 3 melhores da janela + o melhor fora dela. Demais em levas de 3 (calendário
     // chapado: ver paresParaConfirmar); a página não espera por elas.
     const primeira = dentro.slice(0, 3);
-    if (fora) primeira.push({ ida: fora.ida, volta: fora.volta, total: fora.total });
-    const resto = dentro.slice(3);
+    if (fora.length) primeira.push(fora[0]);
+    const resto = [...dentro.slice(3), ...fora.slice(1)];
     const levas = [primeira];
     for (let i = 0; i < resto.length; i += 3) levas.push(resto.slice(i, i + 3));
     log(`pares a confirmar: ${JSON.stringify(levas)}`);
     await avisar(job, "confirmando");
+    const lidos = [];
     for (const leva of levas) {
       if (!leva.length) continue;
-      try { await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura }); }
+      try { lidos.push(...await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura })); }
       catch (e) { log(`aviso: ${e.message}`); } // o calendário já foi entregue; sem confirmação a página fica com o estimado
+    }
+    // Refino: o preço de agência muda pouco de um dia para o vizinho; olha ao redor do melhor par da janela pedida.
+    const minP = Math.max(1, dias - margem);
+    const naJanela = lidos.filter((x) => { const n = Math.round((new Date(x.par.volta) - new Date(x.par.ida)) / 86400000); return n >= minP && n <= dias + margem; });
+    if (dentro.length > 5 && naJanela.length >= 2) { // só no calendário chapado
+      const melhor = naJanela.reduce((m, x) => (x.preco < m.preco ? x : m));
+      const perto = vizinhos(iv, vv, melhor.par, lidos.map((x) => x.par), dias, margem, 0, 3);
+      if (perto.length) {
+        log(`refino ao redor de ${melhor.par.ida}>${melhor.par.volta} (R$ ${melhor.preco}): ${JSON.stringify(perto)}`);
+        try { await confirmarEmParalelo({ job, origem, destino, pares: perto, log, leitura }); } catch (e) { log(`aviso: ${e.message}`); }
+      }
     }
   }
   await avisar(job, "pronto");

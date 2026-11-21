@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adicionarDias, melhoresPares, melhorParForaDaJanela, paresParaConfirmar } from "../scan/pares.mjs";
+import { adicionarDias, melhoresPares, melhorParForaDaJanela, paresParaConfirmar, paresDeSugestao, vizinhos } from "../scan/pares.mjs";
 import { postar } from "../scan/enviar.mjs";
 import { urlBusca } from "../scan/confirmar.mjs";
 import { urlSoIda, mesesVazios } from "../scan/calendario.mjs";
@@ -129,4 +129,26 @@ test("paresParaConfirmar: calendário chapado espalha até 9 datas diferentes", 
   const r = paresParaConfirmar(p);
   assert.equal(r.length, 9);
   for (let i = 1; i < r.length; i++) assert.ok((new Date(r[i].ida) - new Date(r[i - 1].ida)) / 86400000 >= 3);
+});
+
+test("paresDeSugestao: calendário chapado devolve até 4 pares fora da janela, espalhados", () => {
+  const ida = {}; const volta = {};
+  for (let i = 0; i < 60; i++) { ida[adicionarDias("2027-03-01", i)] = 4000; volta[adicionarDias("2027-03-01", i)] = 4000; }
+  const r = paresDeSugestao(ida, volta, 10, 2, 4);
+  assert.equal(r.length, 4);
+  assert.ok(r.every((p) => { const n = (new Date(p.volta) - new Date(p.ida)) / 86400000; return n < 8 || n > 12; }));
+});
+
+test("paresDeSugestao: calendário com preços diferentes devolve só o melhor", () => {
+  const ida = {}; const volta = {};
+  for (let i = 0; i < 60; i++) { ida[adicionarDias("2027-03-01", i)] = 3000 + i * 300; volta[adicionarDias("2027-03-01", i)] = 3000; }
+  assert.equal(paresDeSugestao(ida, volta, 10, 2, 4).length, 1);
+});
+
+test("vizinhos: só datas do calendário, ainda não lidas, dentro da duração", () => {
+  const ida = {}; const volta = {};
+  for (let i = 0; i < 40; i++) { ida[adicionarDias("2027-03-01", i)] = 1; volta[adicionarDias("2027-03-01", i)] = 1; }
+  const r = vizinhos(ida, volta, { ida: "2027-03-10", volta: "2027-03-20" }, [{ ida: "2027-03-11", volta: "2027-03-20" }], 10, 2, 0, 3);
+  assert.equal(r.length, 3);
+  assert.ok(!r.some((p) => p.ida === "2027-03-11" && p.volta === "2027-03-20"));
 });
