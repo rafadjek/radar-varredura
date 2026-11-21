@@ -2,7 +2,7 @@
 
 Leitor do Google Voos usado pelo RadarPassagens (https://radarpassagens.pages.dev). Roda no GitHub Actions: um Chrome sem interface abre o Google Voos com `gl=BR`, lê o calendário de preços (só ida, ~330 dias) e a aba "Menores preços" do par de datas, e envia o resultado ao Worker do site.
 
-Não há chave de API paga. O repositório é público só para os minutos do GitHub Actions serem ilimitados; nenhum segredo fica aqui (`WORKER_URL` e `INGEST_SECRET` são secrets do repositório).
+Não há chave de API paga. **O repositório é privado** (desde 2026-11-21) porque ele usa executores self-hosted no PC do Rafael (`D:\actions-runner`, etiquetas `pc-brasil` e `pc-salvas`): o IP brasileiro residencial do PC enxerga as ofertas de agência que o IP do GitHub não vê. Quando o PC está desligado, o Worker manda os jobs para o GitHub hospedado (`ubuntu-latest`, plano B). Nenhum segredo fica no código (`WORKER_URL` e `INGEST_SECRET` são secrets do repositório; o batimento do PC lê os mesmos valores das variáveis de ambiente do usuário).
 
 - `.github/workflows/buscar.yml`: uma busca sob demanda (ida e volta em paralelo, depois confirma os 3 melhores pares).
 - `.github/workflows/confirmar.yml`: só confirma até 3 pares.
