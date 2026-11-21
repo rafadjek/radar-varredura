@@ -12,3 +12,9 @@ Não há chave de API paga. **O repositório é privado** (desde 2026-11-21) por
 Teste local (Edge/Chrome instalado): `CHROME_BIN="caminho do msedge.exe" node scan/cli.mjs calendario teste GRU JDO ida saida.json` (sem `WORKER_URL`, só mostra o que enviaria). Testes: `node --test test/`.
 
 Ler o Google Voos por navegador automatizado é de uso pessoal e volume baixo; se o Google mudar a página, as leituras falham de forma explícita (cobertura baixa), nunca com preço inventado.
+
+## Leitor com abas e verificação de janela (Fase 3)
+- `scan/navegador.mjs` + `scan/leitor.mjs`: um navegador com várias abas (`ABAS`, padrão 3, máx 6); o preço só vale quando a resposta `GetShoppingResults` do Google termina (plano B: 20 s + 12 s estável); página "sorry"/captcha para tudo (`ErroBloqueio`). `LEITOR=antigo` volta ao leitor de um navegador por par.
+- `scan/verificar.mjs` + `.github/workflows/verificar.yml`: `cli verificar <job> <origem> <destino>` pega os pares do Worker (`GET /api/varredura/job/<id>`) e entrega os preços em lotes (`POST /api/varredura/lote`).
+- `scan/medir.mjs` e `scan/ab.mjs`: medições locais (gastam consultas ao Google; poucas e espaçadas). Resultados em `apoio/plans/2026-11-21-f30-medicao.md` (projeto monitor-milhas).
+- O perfil temporário do navegador é apagado ao fechar.
