@@ -1,0 +1,34 @@
+name: verificar
+on:
+  workflow_dispatch:
+    inputs:
+      job: { description: "id da verificação (criado pelo Worker)", required: true }
+      origem: { required: true }
+      destino: { required: true }
+      runner: { description: "executor em JSON (o Worker escolhe: PC do Rafael ou nuvem)", required: false, default: '"ubuntu-latest"' }
+
+permissions:
+  contents: read
+
+# Verifica no Google Voos (com ofertas de agência) todos os pares que o Worker escolheu para a janela de datas.
+# Os pares vêm do Worker (GET /api/varredura/job/<id>) e os preços voltam em lotes.
+jobs:
+  verificar:
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 40
+    env:
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+      JOB: ${{ inputs.job }}
+      ORIGEM: ${{ inputs.origem }}
+      DESTINO: ${{ inputs.destino }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: runner.environment == 'github-hosted'
+        uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - shell: bash
+        run: node scan/cli.mjs verificar "$JOB" "$ORIGEM" "$DESTINO"
+      - if: failure()
+        shell: bash
+        run: node scan/cli.mjs etapa "$JOB" erro

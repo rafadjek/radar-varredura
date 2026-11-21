@@ -5,6 +5,7 @@ import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
 import { melhoresPares } from "./pares.mjs";
 import { buscar as buscarTudo, confirmarEmParalelo } from "./busca.mjs";
+import { verificar as verificarJanela } from "./verificar.mjs";
 import * as v from "./validar.mjs";
 
 const t0 = Date.now();
@@ -28,7 +29,7 @@ async function calendario([job, origem, destino, sentido, arquivo]) {
     if (arquivo) writeFileSync(arquivo, JSON.stringify({ origem, destino, sentido, dias: r.dias }));
     await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, leitura, lidoEm: agora() });
     log(`${sentido} enviado: ${r.cobertura} dias${r.completo ? "" : " (cobertura incompleta)"}`);
-  } finally { chrome.fechar(); }
+  } finally { await chrome.fechar(); }
 }
 
 // pares <dias> <margem> <ida.json> <volta.json>  -> escreve matriz e tem em $GITHUB_OUTPUT
@@ -59,7 +60,7 @@ async function confirmar([job, origem, destino, ida, volta]) {
     if (preco === null) throw new Error("não consegui ler o menor preço");
     log(`confirmado ${origem}>${destino} ${ida} ${v}: R$ ${preco}`);
     await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida, volta: v, preco, leitura, lidoEm: agora() });
-  } finally { chrome.fechar(); }
+  } finally { await chrome.fechar(); }
 }
 
 // salvas <origem>: varre os dois sentidos de cada destino de rotas.json; só envia leitura razoável
@@ -84,7 +85,7 @@ async function salvas([origem]) {
         await dormir(5000);
       }
     }
-  } finally { chrome.fechar(); }
+  } finally { await chrome.fechar(); }
   log(`salvas ${origem}: ${ok} leituras enviadas`);
   if (!ok) process.exit(1);
 }
@@ -119,7 +120,12 @@ async function confirmarPares([job, origem, destino, pares]) {
   await etapa(job, "pronto").catch(() => {});
 }
 
-const comandos = { calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares, buscar: buscarCmd, "confirmar-pares": confirmarPares };
+// verificar <job> <origem> <destino>: verifica os pares que o Worker escolheu para o job (janela de datas)
+async function verificarCmd([job, origem, destino]) {
+  await verificarJanela({ job, origem, destino, log, leitura });
+}
+
+const comandos = { verificar: verificarCmd, calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares, buscar: buscarCmd, "confirmar-pares": confirmarPares };
 if (!comandos[comando]) { console.error("uso: cli.mjs calendario|pares|confirmar|salvas ..."); process.exit(2); }
 try { await comandos[comando](a); process.exit(0); }
 catch (e) { console.error("ERRO:", e.message); process.exit(1); }

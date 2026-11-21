@@ -28,5 +28,5 @@ for (const v of variantes) {
   await dormir(22000);
   console.log(`[variante] ${v.nome}:`, JSON.stringify(await chrome.avaliar(leitura)));
 }
-chrome.fechar();
+await chrome.fechar();
 process.exit(0);

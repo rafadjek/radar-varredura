@@ -2,7 +2,7 @@ import { dormir } from "./chrome.mjs";
 import { rotaConfere, datasConferem } from "./pagina.mjs";
 import { construirTfs } from "./tfs.mjs";
 
-function menorPrecoAba() {
+export function menorPrecoAba() {
   const n = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const aba = [...document.querySelectorAll("[role=tab]")].find((e) => n(e.textContent).startsWith("menores pre"));
   const preco = aba && aba.querySelector('[aria-label$="Reais brasileiros"]');

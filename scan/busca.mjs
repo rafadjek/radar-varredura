@@ -1,4 +1,6 @@
 ﻿import { abrirChrome } from "./chrome.mjs";
+import { abrirNavegador } from "./navegador.mjs";
+import { lerPrecos, ABAS_PADRAO } from "./leitor.mjs";
 import { lerCalendario } from "./calendario.mjs";
 import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
@@ -18,7 +20,7 @@ async function lerPerna({ job, origem, destino, sentido, log, leitura }) {
     await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, leitura, lidoEm: agora() });
     log(`${sentido} enviado: ${r.cobertura} dias${r.completo ? "" : " (cobertura incompleta)"}`);
     return r.dias;
-  } finally { chrome.fechar(); }
+  } finally { await chrome.fechar(); }
 }
 
 async function confirmarUm({ job, origem, destino, par, log, leitura }) {
@@ -29,11 +31,31 @@ async function confirmarUm({ job, origem, destino, par, log, leitura }) {
     log(`confirmado ${origem}>${destino} ${par.ida} ${par.volta || ""}: R$ ${preco}`);
     await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida: par.ida, volta: par.volta || "", preco, leitura, lidoEm: agora() });
     return preco;
-  } finally { chrome.fechar(); }
+  } finally { await chrome.fechar(); }
 }
 
-// Confirma vários pares ao mesmo tempo (um navegador por par). Falha só se nenhum deu certo.
-export async function confirmarEmParalelo({ job, origem, destino, pares, log, leitura }) {
+// Confirma vários pares com o leitor novo: um navegador com N abas (ABAS, padrão 3). LEITOR=antigo volta ao
+// leitor de um navegador por par (reserva até o A/B da F3.2 ser aceito). Cada preço vai ao Worker assim que é lido.
+// Página barrada pelo Google (ErroBloqueio) sobe como erro: o chamador avisa o Worker, que passa a usar a nuvem.
+export async function confirmarComAbas({ job, origem, destino, pares, log, leitura, abas = Number(process.env.ABAS) || ABAS_PADRAO }) {
+  const navegador = await abrirNavegador();
+  try {
+    const lidos = await lerPrecos(navegador, {
+      origem, destino, pares, abas, log,
+      aoLer: async (par, preco) => {
+        log(`confirmado ${origem}>${destino} ${par.ida} ${par.volta || ""}: R$ ${preco}`);
+        await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida: par.ida, volta: par.volta || "", preco, leitura, lidoEm: agora() });
+      },
+    });
+    if (!lidos.length) throw new Error("nenhuma confirmação deu certo");
+    return lidos;
+  } finally { await navegador.fechar(); }
+}
+
+export const confirmarEmParalelo = (args) => (process.env.LEITOR === "antigo" ? confirmarUmaPorVez(args) : confirmarComAbas(args));
+
+// Leitor antigo: confirma vários pares ao mesmo tempo (um navegador por par). Falha só se nenhum deu certo.
+export async function confirmarUmaPorVez({ job, origem, destino, pares, log, leitura }) {
   const r = await Promise.allSettled(pares.map((par) => confirmarUm({ job, origem, destino, par, log, leitura })));
   r.forEach((x) => { if (x.status === "rejected") log(`aviso: ${x.reason.message}`); });
   const ok = r.map((x, i) => (x.status === "fulfilled" ? { par: pares[i], preco: x.value } : null)).filter(Boolean);
@@ -67,7 +89,10 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
     for (const leva of levas) {
       if (!leva.length) continue;
       try { lidos.push(...await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura })); }
-      catch (e) { log(`aviso: ${e.message}`); } // o calendário já foi entregue; sem confirmação a página fica com o estimado
+      catch (e) { // o calendário já foi entregue; sem confirmação a página fica com o estimado
+        log(`aviso: ${e.message}`);
+        if (e.name === "ErroBloqueio") { await avisar(job, "erro", "google_bloqueou"); return; } // disjuntor: nada de insistir
+      }
     }
     // Refino: o preço de agência muda pouco de um dia para o vizinho; olha ao redor do melhor par da janela pedida.
     const minP = Math.max(1, dias - margem);
@@ -77,7 +102,8 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
       const perto = vizinhos(iv, vv, melhor.par, lidos.map((x) => x.par), dias, margem, 0, 3);
       if (perto.length) {
         log(`refino ao redor de ${melhor.par.ida}>${melhor.par.volta} (R$ ${melhor.preco}): ${JSON.stringify(perto)}`);
-        try { await confirmarEmParalelo({ job, origem, destino, pares: perto, log, leitura }); } catch (e) { log(`aviso: ${e.message}`); }
+        try { await confirmarEmParalelo({ job, origem, destino, pares: perto, log, leitura }); }
+        catch (e) { log(`aviso: ${e.message}`); if (e.name === "ErroBloqueio") { await avisar(job, "erro", "google_bloqueou"); return; } }
       }
     }
   }

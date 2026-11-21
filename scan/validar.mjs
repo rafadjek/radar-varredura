@@ -1,6 +1,6 @@
 const RE_IATA = /^[A-Z]{3}$/;
 const RE_DATA = /^\d{4}-\d{2}-\d{2}$/;
-const RE_JOB = /^((b|c)-[0-9a-f]{12}|salvas-\d{4}-\d{2}-\d{2}|teste[-a-z0-9]{0,24})$/;
+const RE_JOB = /^((b|c|v)-[0-9a-f]{12}|salvas-\d{4}-\d{2}-\d{2}|teste[-a-z0-9]{0,24})$/;
 
 function exigir(ok, msg) { if (!ok) throw new Error(`entrada inválida: ${msg}`); }
 
