@@ -18,9 +18,10 @@ export function urlBusca({ origem, destino, ida, volta }) {
 
 // Menor preço mostrado pelo Google (aba "Menores preços"). O Google atualiza o valor quando chegam as
 // ofertas das agências, então só vale o valor que fica estável por ESTAVEL_MS.
-// minimoMs: a oferta mais barata (agências) chega ~9–12 s depois do primeiro preço; aceitar o valor "estável" cedo
-// demais lê o preço da companhia (ex.: 759 que cai para 703). Por isso só se aceita depois de minimoMs desde a abertura.
-export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, minimoMs = 16000, limiteMs = 45000, tentativas = 2, log = () => {} } = {}) {
+// O Google mostra primeiro o preço da companhia (ex.: 755) e, de 1 a ~6 s depois (mais com vários navegadores abertos
+// ao mesmo tempo), a oferta mais barata (716). Aceitar o valor cedo lê o preço da companhia. Por isso só se aceita
+// depois de minimoMs desde a abertura E de estavelMs sem mudar.
+export async function lerMenorPreco(chrome, busca, { estavelMs = 12000, minimoMs = 20000, limiteMs = 70000, tentativas = 2, log = () => {} } = {}) {
   for (let t = 1; t <= tentativas; t++) {
     await chrome.navegar(urlBusca(busca));
     const inicio = Date.now();
