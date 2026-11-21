@@ -5,19 +5,27 @@ on:
 permissions:
   contents: read
 
+# Roda só no PC do Rafael (executor com a etiqueta pc-salvas, separado dos de busca): se o PC estiver
+# desligado, a rodada espera na fila; a rodada mais nova cancela a anterior para não acumular dias.
+concurrency:
+  group: salvas
+  cancel-in-progress: true
+
 jobs:
   salvas:
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
+    runs-on: [self-hosted, pc-salvas]
+    timeout-minutes: 240
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         origem: [GRU, CGH, VCP]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - env:
+      - shell: bash
+        env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           ORIGEM: ${{ matrix.origem }}

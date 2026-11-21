@@ -7,19 +7,21 @@ on:
       destino: { required: true }
       dias: { required: true, default: "20" }
       margem: { required: true, default: "0" }
+      runner: { description: "executor em JSON (o Worker escolhe: PC do Rafael ou nuvem)", required: false, default: '"ubuntu-latest"' }
 
 permissions:
   contents: read
 
 jobs:
   ida:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - env:
+      - shell: bash
+        env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           JOB: ${{ inputs.job }}
@@ -30,13 +32,14 @@ jobs:
         with: { name: ida, path: ida.json }
 
   volta:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - env:
+      - shell: bash
+        env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           JOB: ${{ inputs.job }}
@@ -48,7 +51,7 @@ jobs:
 
   pares:
     needs: [ida, volta]
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 3
     outputs:
       tem: ${{ steps.p.outputs.tem }}
@@ -62,6 +65,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: volta }
       - id: p
+        shell: bash
         env:
           DIAS: ${{ inputs.dias }}
           MARGEM: ${{ inputs.margem }}
@@ -70,7 +74,7 @@ jobs:
   confirmar:
     needs: pares
     if: needs.pares.outputs.tem == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 6
     strategy:
       fail-fast: false
@@ -79,7 +83,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - env:
+      - shell: bash
+        env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           JOB: ${{ inputs.job }}
@@ -92,13 +97,14 @@ jobs:
   fim:
     needs: [ida, volta, confirmar]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - env:
+      - shell: bash
+        env:
           WORKER_URL: ${{ secrets.WORKER_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
           JOB: ${{ inputs.job }}

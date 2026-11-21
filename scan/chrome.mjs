@@ -6,7 +6,8 @@ import { join } from "node:path";
 export const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Sobe um Chrome sem interface e fala com ele pelo protocolo de depuração (CDP), sem dependências.
-export async function abrirChrome({ porta = 9333, bin = process.env.CHROME_BIN || "google-chrome" } = {}) {
+// A porta é sorteada: no PC vários jobs rodam ao mesmo tempo, cada um com o seu Chrome.
+export async function abrirChrome({ porta = 20000 + Math.floor(Math.random() * 20000), bin = process.env.CHROME_BIN || "google-chrome" } = {}) {
   const perfil = mkdtempSync(join(tmpdir(), "perfil-"));
   const proc = spawn(bin, [
     "--headless=new", `--remote-debugging-port=${porta}`, `--user-data-dir=${perfil}`, "--no-sandbox",

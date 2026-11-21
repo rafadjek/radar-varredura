@@ -10,6 +10,8 @@ const t0 = Date.now();
 const log = (s) => console.log(`[${Math.round((Date.now() - t0) / 1000)}s] ${s}`);
 const [comando, ...a] = process.argv.slice(2);
 const agora = () => new Date().toISOString();
+// Onde o Google foi lido: o IP do PC do Rafael (Brasil) vê as ofertas de agência que ele vê; o do GitHub, não.
+const leitura = process.env.RUNNER_ENVIRONMENT === "self-hosted" ? "pc" : "nuvem";
 
 // calendario <job> <origem> <destino> <ida|volta> <arquivo.json>
 //   "ida" lê origem->destino; "volta" lê destino->origem. O resultado vai ao Worker na ordem da busca.
@@ -23,7 +25,7 @@ async function calendario([job, origem, destino, sentido, arquivo]) {
     const r = await lerCalendario(chrome, de, para, { log });
     if (!r.cobertura) { await etapa(job, "erro", `sem preços de ${de} para ${para}`).catch(() => {}); throw new Error("sem preços do Google"); }
     if (arquivo) writeFileSync(arquivo, JSON.stringify({ origem, destino, sentido, dias: r.dias }));
-    await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, lidoEm: agora() });
+    await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, leitura, lidoEm: agora() });
     log(`${sentido} enviado: ${r.cobertura} dias${r.completo ? "" : " (cobertura incompleta)"}`);
   } finally { chrome.fechar(); }
 }
@@ -55,7 +57,7 @@ async function confirmar([job, origem, destino, ida, volta]) {
     const preco = await lerMenorPreco(chrome, { origem, destino, ida, volta: v }, { log });
     if (preco === null) throw new Error("não consegui ler o menor preço");
     log(`confirmado ${origem}>${destino} ${ida} ${v}: R$ ${preco}`);
-    await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida, volta: v, preco, lidoEm: agora() });
+    await postar("/api/varredura/resultado", { job, tipo: "confirmacao", origem, destino, ida, volta: v, preco, leitura, lidoEm: agora() });
   } finally { chrome.fechar(); }
 }
 
@@ -74,7 +76,7 @@ async function salvas([origem]) {
           const [de, para] = sentido === "ida" ? [origem, destino] : [destino, origem];
           const r = await lerCalendario(chrome, de, para, { log, tentativas: 2 });
           if (r.cobertura >= 150) {
-            await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, lidoEm: agora() });
+            await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, leitura, lidoEm: agora() });
             ok++;
           } else log(`${de}>${para}: cobertura baixa (${r.cobertura}), mantém o dado anterior`);
         } catch (e) { log(`${origem}/${destino} ${sentido}: ${e.message}`); }
