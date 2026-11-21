@@ -154,3 +154,33 @@ test("pool: bloqueio numa aba para as outras, sobe o erro e fecha tudo", async (
   assert.ok(chamadas < 12, `parou de ler depois do bloqueio (${chamadas} de 12)`);
   assert.equal(nav.fechadas, nav.abertas);
 });
+
+// ---------- correções da revisão (2026-11-21) ----------
+
+test("estadoDoFluxo: resposta que terminou por FALHA não vale como fim (cai no plano B)", () => {
+  const aba = { gsr: { iniciou: true, ativas: new Set(), fimEm: 1000, falhou: true } };
+  assert.deepEqual(estadoDoFluxo(aba, 9000), { iniciou: true, ativas: 0, fimHaMs: null });
+  assert.equal(decidirFim({ t: 9000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 9000) }), null, "só 9 s: ainda não vale a regra antiga");
+  assert.equal(decidirFim({ t: 25000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 25000) }), "estavel");
+});
+
+test("pool: aba que não abre não derruba as outras", async () => {
+  let n = 0;
+  const nav = { fechadas: 0, novaAba: async () => { if (++n === 2) throw new Error("não abri a aba"); return { fechar: async () => { nav.fechadas++; } }; } };
+  const avisos = [];
+  const lidos = await lerPrecos(nav, { origem: "GRU", destino: "JDO", pares: pares(6), abas: 3, escalonarMs: 0, ler: async () => 500, log: (s) => avisos.push(s) });
+  assert.equal(lidos.length, 6, "as duas abas que abriram leram tudo");
+  assert.equal(nav.fechadas, 2);
+  assert.ok(avisos.some((s) => /não consegui abrir a aba/.test(s)));
+});
+
+test("leitor: navegador que cai no meio da leitura falha na hora (não espera o limite)", async () => {
+  const aba = abaFalsa({ preco: () => null });
+  let vivo = true;
+  aba.vivo = () => vivo;
+  const original = aba.avaliar;
+  aba.avaliar = async (...a) => { if (!aba.pulo) { aba.pulo = 1; } else vivo = false; return original(...a); };
+  const t0 = Date.now();
+  await assert.rejects(() => ler(aba, { limiteMs: 600000 }), /navegador caiu/);
+  assert.ok(Date.now() - t0 < 2000);
+});

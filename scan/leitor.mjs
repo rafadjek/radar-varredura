@@ -25,6 +25,7 @@ export function decidirFim({ t, preco, ultimaMudancaMs, fluxo, minimoMs = 20000,
 export async function lerPrecoNaAba(aba, busca, { limiteMs = 60000, tentativas = 2, passoMs = 250, log = () => {}, agora = Date.now } = {}) {
   const rotulo = `${busca.origem}>${busca.destino} ${busca.ida}${busca.volta ? `→${busca.volta}` : ""}`;
   for (let tent = 1; tent <= tentativas; tent++) {
+    if (aba.vivo && !aba.vivo()) throw new Error("o navegador caiu");
     await aba.navegar(urlBusca(busca));
     const inicio = agora();
     let ultimo = null;
@@ -33,6 +34,7 @@ export async function lerPrecoNaAba(aba, busca, { limiteMs = 60000, tentativas =
     const trajetoria = [];
     while (agora() - inicio < limiteMs) {
       await dormir(passoMs);
+      if (aba.vivo && !aba.vivo()) throw new Error("o navegador caiu"); // sem isso cada par esperaria o limite inteiro
       const t = agora() - inicio;
       if (t - ultimaChecagem >= 1000) {
         ultimaChecagem = t;
@@ -66,7 +68,8 @@ export async function lerPrecos(navegador, { origem, destino, pares, abas = ABAS
   const n = Math.max(1, Math.min(Number(abas) || ABAS_PADRAO, MAX_ABAS, pares.length));
   async function trabalhador(k) {
     await dormir(k * escalonarMs); // não abre todas as abas no mesmo instante
-    const aba = await navegador.novaAba();
+    let aba;
+    try { aba = await navegador.novaAba(); } catch (e) { log(`aviso: não consegui abrir a aba ${k + 1}: ${e.message}`); return; } // as outras abas seguem
     try {
       while (!bloqueio) {
         const par = fila.shift();

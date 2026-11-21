@@ -28,15 +28,19 @@ export async function abrirNavegador({ porta = 20000 + Math.floor(Math.random() 
     "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "about:blank",
   ], { stdio: "ignore" });
 
+  let erroSpawn = null;
+  proc.on("error", (e) => { erroSpawn = e; }); // binário inexistente: sem isso o processo inteiro cairia
   let wsUrl;
-  for (let i = 0; i < 120 && !wsUrl; i++) {
+  for (let i = 0; i < 120 && !wsUrl && !erroSpawn; i++) {
     await dormir(250);
     try { wsUrl = (await (await fetch(`http://127.0.0.1:${porta}/json/version`)).json()).webSocketDebuggerUrl; } catch { /* subindo */ }
   }
-  if (!wsUrl) { await encerrar(proc, perfil); throw new Error("navegador não subiu"); }
+  if (!wsUrl) { await encerrar(proc, perfil); throw new Error(`navegador não subiu${erroSpawn ? `: ${erroSpawn.message}` : ""}`); }
 
   const ws = new WebSocket(wsUrl);
-  await new Promise((r) => ws.addEventListener("open", r));
+  try {
+    await new Promise((ok, falha) => { ws.addEventListener("open", ok); ws.addEventListener("error", () => falha(new Error("sem conexão com o navegador"))); setTimeout(() => falha(new Error("sem conexão com o navegador (prazo)")), 15000); });
+  } catch (e) { await encerrar(proc, perfil); throw e; }
   let id = 0;
   const espera = new Map();
   const ouvintes = new Map();
@@ -45,21 +49,35 @@ export async function abrirNavegador({ porta = 20000 + Math.floor(Math.random() 
     if (d.id && espera.has(d.id)) { espera.get(d.id)(d); espera.delete(d.id); }
     else if (d.sessionId && ouvintes.has(d.sessionId)) ouvintes.get(d.sessionId)(d);
   });
+  // Cada comando tem prazo (30 s) e, se o navegador cair, todos os pendentes falham na hora: sem isso o job ficaria
+  // pendurado até o timeout do workflow.
   const cmd = (method, params = {}, sessionId) => new Promise((resolver) => {
-    const i = ++id; espera.set(i, resolver);
-    ws.send(JSON.stringify({ id: i, method, params, ...(sessionId ? { sessionId } : {}) }));
+    const i = ++id;
+    const timer = setTimeout(() => { if (espera.delete(i)) resolver({ error: { message: `${method}: sem resposta em 30 s` } }); }, 30000);
+    espera.set(i, (d) => { clearTimeout(timer); resolver(d); });
+    try { ws.send(JSON.stringify({ id: i, method, params, ...(sessionId ? { sessionId } : {}) })); }
+    catch { clearTimeout(timer); espera.delete(i); resolver({ error: { message: `${method}: navegador fechado` } }); }
   });
+  ws.addEventListener("close", () => { for (const [i, r] of espera) { espera.delete(i); r({ error: { message: "navegador fechou" } }); } });
 
   async function novaAba() {
-    const { result: { targetId } } = await cmd("Target.createTarget", { url: "about:blank" });
-    const { result: { sessionId: sid } } = await cmd("Target.attachToTarget", { targetId, flatten: true });
+    const criada = await cmd("Target.createTarget", { url: "about:blank" });
+    if (!criada.result) throw new Error(`não abri a aba: ${criada.error?.message || "?"}`);
+    const { targetId } = criada.result;
+    const ligada = await cmd("Target.attachToTarget", { targetId, flatten: true });
+    if (!ligada.result) throw new Error(`não liguei à aba: ${ligada.error?.message || "?"}`);
+    const sid = ligada.result.sessionId;
     const aba = { gsr: novoRastro() };
     ouvintes.set(sid, (m) => {
       const p = m.params || {};
       if (m.method === "Network.requestWillBeSent") {
         if (RE_RESULTADOS.test(p.request?.url || "")) { aba.gsr.iniciou = true; aba.gsr.ativas.add(p.requestId); }
       } else if (m.method === "Network.loadingFinished" || m.method === "Network.loadingFailed") {
-        if (aba.gsr.ativas.delete(p.requestId) && aba.gsr.ativas.size === 0) aba.gsr.fimEm = Date.now();
+        const falhou = m.method === "Network.loadingFailed";
+        if (aba.gsr.ativas.delete(p.requestId)) {
+          if (falhou) aba.gsr.falhou = true; // resposta abortada: o preço de agência pode nunca ter chegado
+          if (aba.gsr.ativas.size === 0) aba.gsr.fimEm = Date.now();
+        }
       } else if (m.method === "Fetch.requestPaused") {
         cmd("Fetch.failRequest", { requestId: p.requestId, errorReason: "BlockedByClient" }, sid); // só imagem, fonte e mídia
       }
@@ -78,6 +96,7 @@ export async function abrirNavegador({ porta = 20000 + Math.floor(Math.random() 
       if (r.result?.exceptionDetails) throw new Error("erro na página: " + (r.result.exceptionDetails.exception?.description || "?").slice(0, 200));
       return r.result?.result?.value;
     };
+    aba.vivo = () => ws.readyState === 1; // false = o navegador caiu
     aba.endereco = async () => { try { return await aba.avaliar(() => location.href); } catch { return ""; } };
     aba.fechar = async () => { ouvintes.delete(sid); await cmd("Target.closeTarget", { targetId }).catch(() => {}); };
     return aba;
@@ -87,11 +106,12 @@ export async function abrirNavegador({ porta = 20000 + Math.floor(Math.random() 
   return { novaAba, fechar, cmd };
 }
 
-function novoRastro() { return { iniciou: false, ativas: new Set(), fimEm: null }; }
+function novoRastro() { return { iniciou: false, ativas: new Set(), fimEm: null, falhou: false }; }
 
 // Estado do fluxo de resultados para a regra de fim (ver leitor.mjs).
 export const estadoDoFluxo = (aba, agora = Date.now()) => ({
   iniciou: aba.gsr.iniciou,
   ativas: aba.gsr.ativas.size,
-  fimHaMs: aba.gsr.fimEm === null ? null : agora - aba.gsr.fimEm,
+  // Fim por FALHA não conta como fim da chegada de preços: cai na regra de estabilidade (plano B).
+  fimHaMs: aba.gsr.fimEm === null || aba.gsr.falhou ? null : agora - aba.gsr.fimEm,
 });
