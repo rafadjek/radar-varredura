@@ -107,3 +107,10 @@ test("melhorParForaDaJanela: empate de soma escolhe a duração mais perto do pe
   assert.deepEqual(r, { ida: "2027-03-01", volta: "2027-03-12", total: 200, dias: 11 });
   assert.equal(melhorParForaDaJanela({ "2027-03-01": 100 }, { "2027-03-11": 100 }, 10, 0, 4), null);
 });
+
+test("pares nunca passam de 35 dias (limite do Worker)", () => {
+  const ida = { "2027-03-01": 100 };
+  const volta = { "2027-04-05": 100, "2027-04-10": 50 }; // 35 e 40 dias
+  assert.deepEqual(melhoresPares(ida, volta, 34, 3, 3).map((p) => p.volta), ["2027-04-05"]);
+  assert.deepEqual(melhorParForaDaJanela(ida, volta, 30, 2, 8), { ida: "2027-03-01", volta: "2027-04-05", total: 200, dias: 35 });
+});

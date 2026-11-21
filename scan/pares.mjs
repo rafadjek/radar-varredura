@@ -1,3 +1,6 @@
+// O Worker só aceita confirmação com a volta até 35 dias depois da ida.
+export const MAX_DIAS = 35;
+
 export function adicionarDias(iso, n) {
   const d = new Date(`${iso}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -9,7 +12,7 @@ export function melhoresPares(ida, volta, dias, margem = 0, quantos = 3) {
   const pares = [];
   for (const [d, pIda] of Object.entries(ida)) {
     let melhor = null;
-    for (let n = Math.max(1, dias - margem); n <= dias + margem; n++) {
+    for (let n = Math.max(1, dias - margem); n <= Math.min(MAX_DIAS, dias + margem); n++) {
       const v = adicionarDias(d, n);
       if (volta[v] == null) continue;
       const total = pIda + volta[v];
@@ -27,7 +30,7 @@ export function melhorParForaDaJanela(ida, volta, dias, margem = 0, extra = 4) {
   const minP = Math.max(1, dias - margem);
   const maxP = dias + margem;
   const minA = Math.max(1, dias - margem - extra);
-  const maxA = dias + margem + extra;
+  const maxA = Math.min(MAX_DIAS, dias + margem + extra);
   let melhor = null;
   const melhorQue = (c, m) => {
     if (c.total !== m.total) return c.total < m.total;
