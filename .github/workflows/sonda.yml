@@ -1,0 +1,26 @@
+name: sonda
+on:
+  workflow_dispatch:
+    inputs:
+      origem: { required: true, default: "GRU" }
+      destino: { required: true, default: "CWB" }
+      ida: { required: true, default: "2027-02-18" }
+      volta: { required: true, default: "2027-03-01" }
+
+permissions:
+  contents: read
+
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - env:
+          ORIGEM: ${{ inputs.origem }}
+          DESTINO: ${{ inputs.destino }}
+          IDA: ${{ inputs.ida }}
+          VOLTA: ${{ inputs.volta }}
+        run: node scan/sonda-regiao.mjs "$ORIGEM" "$DESTINO" "$IDA" "$VOLTA"
