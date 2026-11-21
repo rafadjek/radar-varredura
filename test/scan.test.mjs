@@ -58,10 +58,14 @@ test("melhoresPares sem volta correspondente devolve vazio", () => {
   assert.deepEqual(melhoresPares({ "2027-02-19": 373 }, {}, 20, 2), []);
 });
 
-test("urls do Google forçam gl=BR e BRL", () => {
-  assert.match(urlBusca({ origem: "GRU", destino: "JDO", ida: "2027-02-19", volta: "2027-03-11" }), /gl=BR&curr=BRL/);
-  assert.match(decodeURIComponent(urlBusca({ origem: "GRU", destino: "JDO", ida: "2027-02-19" })), /one way/);
-  assert.match(decodeURIComponent(urlSoIda("GRU", "JDO", "2027-01-01")), /GRU to JDO on 2027-01-01 one way/);
+test("urls do Google usam o endereço estruturado (tfs), com gl=BR e BRL", () => {
+  const u1 = urlBusca({ origem: "SAO", destino: "POA", ida: "2027-03-01", volta: "2027-03-18" });
+  assert.match(u1, /^https:\/\/www\.google\.com\/travel\/flights\?tfs=/);
+  assert.match(u1, /&hl=pt-BR&gl=BR&curr=BRL$/);
+  const bin = Buffer.from(decodeURIComponent(u1.match(/tfs=([^&]+)/)[1]), "base64").toString("latin1");
+  assert.ok(bin.includes("SAO") && bin.includes("POA") && bin.includes("2027-03-01") && bin.includes("2027-03-18"));
+  const so = Buffer.from(decodeURIComponent(urlSoIda("GRU", "JDO", "2027-01-01").match(/tfs=([^&]+)/)[1]), "base64").toString("latin1");
+  assert.ok(so.includes("GRU") && so.includes("JDO") && !so.includes("2027-03"));
 });
 
 test("postar sem WORKER_URL não chama a rede", async () => {

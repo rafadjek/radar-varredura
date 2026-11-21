@@ -1,5 +1,6 @@
 import { dormir } from "./chrome.mjs";
 import { rotaConfere } from "./pagina.mjs";
+import { construirTfs } from "./tfs.mjs";
 
 // Funções que rodam DENTRO da página do Google Voos (por isso não usam nada deste arquivo).
 function temAba() {
@@ -36,8 +37,8 @@ export const DIAS_ESPERADOS = 330;
 const COBERTURA_MINIMA = 0.9;
 
 export function urlSoIda(origem, destino, data) {
-  const q = `Flights from ${origem} to ${destino} on ${data} one way`;
-  return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&curr=BRL`;
+  const tfs = construirTfs({ origem, destino, ida: data, volta: "" });
+  return `https://www.google.com/travel/flights?tfs=${encodeURIComponent(tfs)}&hl=pt-BR&gl=BR&curr=BRL`;
 }
 
 // O Google guarda os preços já carregados no HTML, então a contagem só cresce quando o mês novo chega.

@@ -1,5 +1,6 @@
 import { dormir } from "./chrome.mjs";
 import { rotaConfere, datasConferem } from "./pagina.mjs";
+import { construirTfs } from "./tfs.mjs";
 
 function menorPrecoAba() {
   const n = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -10,10 +11,8 @@ function menorPrecoAba() {
 }
 
 export function urlBusca({ origem, destino, ida, volta }) {
-  const q = volta
-    ? `Flights from ${origem} to ${destino} on ${ida} through ${volta}`
-    : `Flights from ${origem} to ${destino} on ${ida} one way`;
-  return `https://www.google.com/travel/flights?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&curr=BRL`;
+  const tfs = construirTfs({ origem, destino, ida, volta: volta || "" });
+  return `https://www.google.com/travel/flights?tfs=${encodeURIComponent(tfs)}&hl=pt-BR&gl=BR&curr=BRL`;
 }
 
 // Menor preço mostrado pelo Google (aba "Menores preços"). O Google atualiza o valor quando chegam as

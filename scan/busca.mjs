@@ -51,13 +51,18 @@ export async function buscar({ job, origem, destino, dias, margem, log, leitura 
   ]);
   for (const x of [ida, volta]) if (x.status === "rejected") { await avisar(job, "erro", x.reason.message.slice(0, 190)); throw x.reason; }
   if (dias > 0) {
-    const pares = melhoresPares(ida.value, volta.value, dias, margem, 3);
+    const dentro = melhoresPares(ida.value, volta.value, dias, margem, 5);
     const fora = melhorParForaDaJanela(ida.value, volta.value, dias, margem, EXTRA_DIAS);
-    if (fora) pares.push({ ida: fora.ida, volta: fora.volta, total: fora.total });
-    log(`pares a confirmar: ${JSON.stringify(pares)}`);
-    if (pares.length) {
-      await avisar(job, "confirmando");
-      try { await confirmarEmParalelo({ job, origem, destino, pares, log, leitura }); }
+    // 1ª leva (o que a página mostra logo): 3 melhores da janela + o melhor fora dela. 2ª leva: 4º e 5º da janela, para a
+    // sugestão achar o par realmente mais barato; a página não espera por ela.
+    const primeira = dentro.slice(0, 3);
+    if (fora) primeira.push({ ida: fora.ida, volta: fora.volta, total: fora.total });
+    const segunda = dentro.slice(3);
+    log(`pares a confirmar: ${JSON.stringify(primeira)} e depois ${JSON.stringify(segunda)}`);
+    await avisar(job, "confirmando");
+    for (const leva of [primeira, segunda]) {
+      if (!leva.length) continue;
+      try { await confirmarEmParalelo({ job, origem, destino, pares: leva, log, leitura }); }
       catch (e) { log(`aviso: ${e.message}`); } // o calendário já foi entregue; sem confirmação a página fica com o estimado
     }
   }
