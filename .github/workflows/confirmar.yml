@@ -5,63 +5,30 @@ on:
       job: { description: "id (criado pelo Worker)", required: true }
       origem: { required: true }
       destino: { required: true }
-      pares: { description: "ida|volta,ida|volta (até 3; volta vazia = só ida)", required: true }
+      pares: { description: "ida|volta,ida|volta (até 4; volta vazia = só ida)", required: true }
       runner: { description: "executor em JSON (o Worker escolhe: PC do Rafael ou nuvem)", required: false, default: '"ubuntu-latest"' }
 
 permissions:
   contents: read
 
 jobs:
-  preparar:
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 3
-    outputs:
-      matriz: ${{ steps.m.outputs.matriz }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - id: m
-        shell: bash
-        env:
-          PARES: ${{ inputs.pares }}
-        run: node scan/cli.mjs matriz-pares "$PARES"
-
   confirmar:
-    needs: preparar
     runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 6
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.preparar.outputs.matriz) }}
+    timeout-minutes: 10
+    env:
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+      JOB: ${{ inputs.job }}
+      ORIGEM: ${{ inputs.origem }}
+      DESTINO: ${{ inputs.destino }}
+      PARES: ${{ inputs.pares }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - if: runner.environment == 'github-hosted'
+        uses: actions/setup-node@v4
         with: { node-version: 22 }
       - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          ORIGEM: ${{ inputs.origem }}
-          DESTINO: ${{ inputs.destino }}
-          IDA: ${{ matrix.ida }}
-          VOLTA: ${{ matrix.volta }}
-        run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "$IDA" "$VOLTA"
-
-  fim:
-    needs: confirmar
-    if: always()
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          RESULTADO: ${{ needs.confirmar.result == 'success' && 'pronto' || 'erro' }}
-        run: node scan/cli.mjs etapa "$JOB" "$RESULTADO"
+        run: node scan/cli.mjs confirmar-pares "$JOB" "$ORIGEM" "$DESTINO" "$PARES"
+      - if: failure()
+        shell: bash
+        run: node scan/cli.mjs etapa "$JOB" erro

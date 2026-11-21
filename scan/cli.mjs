@@ -4,6 +4,7 @@ import { lerCalendario } from "./calendario.mjs";
 import { lerMenorPreco } from "./confirmar.mjs";
 import { etapa, postar } from "./enviar.mjs";
 import { melhoresPares } from "./pares.mjs";
+import { buscar as buscarTudo, confirmarEmParalelo } from "./busca.mjs";
 import * as v from "./validar.mjs";
 
 const t0 = Date.now();
@@ -102,7 +103,23 @@ function matrizPares([pares]) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, saida); else console.log(saida);
 }
 
-const comandos = { calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares };
+// buscar <job> <origem> <destino> <dias> <margem>: a busca inteira num job só (ida e volta em paralelo e confirmações)
+async function buscarCmd([job, origem, destino, dias, margem]) {
+  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  await buscarTudo({ job, origem, destino, dias: v.inteiro(dias, 0, 35, "dias"), margem: v.inteiro(margem, 0, 10, "margem"), log, leitura });
+}
+
+// confirmar-pares <job> <origem> <destino> "ida|volta,ida|volta" (até 4, em paralelo)
+async function confirmarPares([job, origem, destino, pares]) {
+  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  const lista = v.pares(pares);
+  await etapa(job, "confirmando").catch(() => {});
+  try { await confirmarEmParalelo({ job, origem, destino, pares: lista, log, leitura }); }
+  catch (e) { await etapa(job, "erro", e.message.slice(0, 190)).catch(() => {}); throw e; }
+  await etapa(job, "pronto").catch(() => {});
+}
+
+const comandos = { calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares, buscar: buscarCmd, "confirmar-pares": confirmarPares };
 if (!comandos[comando]) { console.error("uso: cli.mjs calendario|pares|confirmar|salvas ..."); process.exit(2); }
 try { await comandos[comando](a); process.exit(0); }
 catch (e) { console.error("ERRO:", e.message); process.exit(1); }

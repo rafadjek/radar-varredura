@@ -20,3 +20,31 @@ export function melhoresPares(ida, volta, dias, margem = 0, quantos = 3) {
   pares.sort((a, b) => a.total - b.total || a.ida.localeCompare(b.ida));
   return pares.slice(0, quantos);
 }
+
+// Melhor par FORA da janela pedida (duração ± margem) mas dentro da ampliada (± margem + extra): é a "sugestão".
+// Menor soma; empate: menor |n - dias|, depois ida mais cedo, depois menor n. Mesma regra da página (resumo.js).
+export function melhorParForaDaJanela(ida, volta, dias, margem = 0, extra = 4) {
+  const minP = Math.max(1, dias - margem);
+  const maxP = dias + margem;
+  const minA = Math.max(1, dias - margem - extra);
+  const maxA = dias + margem + extra;
+  let melhor = null;
+  const melhorQue = (c, m) => {
+    if (c.total !== m.total) return c.total < m.total;
+    const dc = Math.abs(c.dias - dias);
+    const dm = Math.abs(m.dias - dias);
+    if (dc !== dm) return dc < dm;
+    if (c.ida !== m.ida) return c.ida < m.ida;
+    return c.dias < m.dias;
+  };
+  for (const [d, pIda] of Object.entries(ida)) {
+    for (let n = minA; n <= maxA; n++) {
+      if (n >= minP && n <= maxP) continue;
+      const v = adicionarDias(d, n);
+      if (volta[v] == null) continue;
+      const c = { ida: d, volta: v, total: pIda + volta[v], dias: n };
+      if (!melhor || melhorQue(c, melhor)) melhor = c;
+    }
+  }
+  return melhor;
+}

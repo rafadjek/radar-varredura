@@ -12,101 +12,26 @@ on:
 permissions:
   contents: read
 
+# Busca inteira num job só (menos espera entre jobs): ida e volta em paralelo, pares em memória e confirmações em paralelo.
 jobs:
-  ida:
+  buscar:
     runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 12
+    timeout-minutes: 15
+    env:
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+      JOB: ${{ inputs.job }}
+      ORIGEM: ${{ inputs.origem }}
+      DESTINO: ${{ inputs.destino }}
+      DIAS: ${{ inputs.dias }}
+      MARGEM: ${{ inputs.margem }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - if: runner.environment == 'github-hosted'
+        uses: actions/setup-node@v4
         with: { node-version: 22 }
       - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          ORIGEM: ${{ inputs.origem }}
-          DESTINO: ${{ inputs.destino }}
-        run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" ida ida.json
-      - uses: actions/upload-artifact@v4
-        with: { name: ida, path: ida.json }
-
-  volta:
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          ORIGEM: ${{ inputs.origem }}
-          DESTINO: ${{ inputs.destino }}
-        run: node scan/cli.mjs calendario "$JOB" "$ORIGEM" "$DESTINO" volta volta.json
-      - uses: actions/upload-artifact@v4
-        with: { name: volta, path: volta.json }
-
-  pares:
-    needs: [ida, volta]
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 3
-    outputs:
-      tem: ${{ steps.p.outputs.tem }}
-      matriz: ${{ steps.p.outputs.matriz }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - uses: actions/download-artifact@v4
-        with: { name: ida }
-      - uses: actions/download-artifact@v4
-        with: { name: volta }
-      - id: p
+        run: node scan/cli.mjs buscar "$JOB" "$ORIGEM" "$DESTINO" "$DIAS" "$MARGEM"
+      - if: failure()
         shell: bash
-        env:
-          DIAS: ${{ inputs.dias }}
-          MARGEM: ${{ inputs.margem }}
-        run: node scan/cli.mjs pares "$DIAS" "$MARGEM" ida.json volta.json
-
-  confirmar:
-    needs: pares
-    if: needs.pares.outputs.tem == 'true'
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 6
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.pares.outputs.matriz) }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          ORIGEM: ${{ inputs.origem }}
-          DESTINO: ${{ inputs.destino }}
-          IDA: ${{ matrix.ida }}
-          VOLTA: ${{ matrix.volta }}
-        run: node scan/cli.mjs confirmar "$JOB" "$ORIGEM" "$DESTINO" "$IDA" "$VOLTA"
-
-  fim:
-    needs: [ida, volta, confirmar]
-    if: always()
-    runs-on: ${{ fromJSON(inputs.runner) }}
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - shell: bash
-        env:
-          WORKER_URL: ${{ secrets.WORKER_URL }}
-          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          JOB: ${{ inputs.job }}
-          RESULTADO: ${{ (needs.ida.result == 'success' && needs.volta.result == 'success') && 'pronto' || 'erro' }}
-        run: node scan/cli.mjs etapa "$JOB" "$RESULTADO"
+        run: node scan/cli.mjs etapa "$JOB" erro

@@ -122,6 +122,7 @@ export async function lerCalendario(chrome, origem, destino, { log = () => {}, t
     for (let pag = 0; pag < 12; pag++) {
       await lerTudo();
       if (!(await chrome.avaliar(avancar))) break;
+      // Clicar os meses em sequência curta não funciona: o Google só carrega as janelas que ficam na tela.
       n = await esperarMes(chrome, n);
     }
     await lerTudo();

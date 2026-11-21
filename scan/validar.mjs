@@ -15,10 +15,10 @@ export const inteiro = (v, min, max, nome) => {
   exigir(Number.isInteger(n) && n >= min && n <= max, `${nome} deve ser inteiro de ${min} a ${max}`);
   return n;
 };
-// "ida|volta,ida|volta" (até 3; volta pode ser vazia)
+// "ida|volta,ida|volta" (até 4; volta pode ser vazia)
 export function pares(texto) {
   const lista = String(texto || "").split(",").filter(Boolean);
-  exigir(lista.length >= 1 && lista.length <= 3, "pares: de 1 a 3");
+  exigir(lista.length >= 1 && lista.length <= 4, "pares: de 1 a 4");
   return lista.map((p) => {
     const [ida, volta = ""] = p.split("|");
     data(ida, "ida");

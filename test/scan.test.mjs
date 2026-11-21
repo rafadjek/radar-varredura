@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adicionarDias, melhoresPares } from "../scan/pares.mjs";
+import { adicionarDias, melhoresPares, melhorParForaDaJanela } from "../scan/pares.mjs";
 import { postar } from "../scan/enviar.mjs";
 import { urlBusca } from "../scan/confirmar.mjs";
 import { urlSoIda, mesesVazios } from "../scan/calendario.mjs";
@@ -22,7 +22,8 @@ test("validar recusa entradas fora do formato", () => {
 test("validar.pares aceita até 3 e volta vazia, recusa lixo", () => {
   assert.deepEqual(v.pares("2027-02-19|2027-03-11,2027-02-21|"), [{ ida: "2027-02-19", volta: "2027-03-11" }, { ida: "2027-02-21", volta: "" }]);
   assert.throws(() => v.pares("2027-02-19|x"), /volta/);
-  assert.throws(() => v.pares("2027-02-19|2027-03-11,a|b,c|d,e|f"), /1 a 3|pares/);
+  assert.throws(() => v.pares("2027-02-19|2027-03-11,2027-02-20|2027-03-12,2027-02-21|2027-03-13,2027-02-22|2027-03-14,2027-02-23|2027-03-15"), /1 a 4/);
+  assert.equal(v.pares("2027-02-19|2027-03-11,2027-02-20|2027-03-12,2027-02-21|2027-03-13,2027-02-22|2027-03-14").length, 4);
 });
 
 test("mesesVazios acha o mês sem preço no meio do período", () => {
@@ -86,4 +87,23 @@ test("postar não repete erro 401", async () => {
   let n = 0;
   await assert.rejects(postar("/x", {}, { env: { WORKER_URL: "https://w.example" }, fetcher: async () => { n++; return { ok: false, status: 401 }; }, esperar: async () => {} }), /401/);
   assert.equal(n, 1);
+});
+
+test("melhorParForaDaJanela: só considera durações fora de dias±margem e dentro de ±(margem+extra)", () => {
+  // dias=10, margem=1: janela pedida 9..11; ampliada 5..15 (extra 4)
+  const ida = { "2027-02-01": 100 };
+  const volta = { "2027-02-11": 50, "2027-02-13": 400, "2027-02-08": 30, "2027-02-21": 10 };
+  // 2027-02-11 = 10 dias (dentro, ignorado); 02-13 = 12 dias (fora, vale); 02-08 = 7 dias (fora, vale); 02-21 = 20 dias (além da ampliada)
+  const r = melhorParForaDaJanela(ida, volta, 10, 1, 4);
+  assert.deepEqual(r, { ida: "2027-02-01", volta: "2027-02-08", total: 130, dias: 7 });
+});
+
+test("melhorParForaDaJanela: empate de soma escolhe a duração mais perto do pedido, depois a ida mais cedo", () => {
+  const ida = { "2027-03-01": 100, "2027-03-05": 100 };
+  // dias=10 margem=0: fora = 6..14 menos 10. Todas somam 200.
+  const volta = { "2027-03-12": 100, "2027-03-16": 100, "2027-03-20": 100 };
+  // 03-01: 03-12 (11 dias, |1|), 03-16 (15, fora da ampliada); 03-05: 03-16 (11 dias, |1|), 03-12 (7 dias, |3|)
+  const r = melhorParForaDaJanela(ida, volta, 10, 0, 4);
+  assert.deepEqual(r, { ida: "2027-03-01", volta: "2027-03-12", total: 200, dias: 11 });
+  assert.equal(melhorParForaDaJanela({ "2027-03-01": 100 }, { "2027-03-11": 100 }, 10, 0, 4), null);
 });
