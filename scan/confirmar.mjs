@@ -18,7 +18,9 @@ export function urlBusca({ origem, destino, ida, volta }) {
 
 // Menor preço mostrado pelo Google (aba "Menores preços"). O Google atualiza o valor quando chegam as
 // ofertas das agências, então só vale o valor que fica estável por ESTAVEL_MS.
-export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, limiteMs = 40000, tentativas = 2, log = () => {} } = {}) {
+// minimoMs: a oferta mais barata (agências) chega ~9–12 s depois do primeiro preço; aceitar o valor "estável" cedo
+// demais lê o preço da companhia (ex.: 759 que cai para 703). Por isso só se aceita depois de minimoMs desde a abertura.
+export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, minimoMs = 16000, limiteMs = 45000, tentativas = 2, log = () => {} } = {}) {
   for (let t = 1; t <= tentativas; t++) {
     await chrome.navegar(urlBusca(busca));
     const inicio = Date.now();
@@ -29,7 +31,7 @@ export async function lerMenorPreco(chrome, busca, { estavelMs = 6000, limiteMs 
       await dormir(500);
       const v = await chrome.avaliar(menorPrecoAba);
       if (v !== ultimo) { ultimo = v; mudou = Date.now(); trajetoria.push(`${v}@${((Date.now() - inicio) / 1000).toFixed(1)}s`); }
-      if (ultimo !== null && Date.now() - mudou >= estavelMs) {
+      if (ultimo !== null && Date.now() - mudou >= estavelMs && Date.now() - inicio >= minimoMs) {
         const certa = (await chrome.avaliar(rotaConfere, busca.origem, busca.destino)) && (await chrome.avaliar(datasConferem, busca.ida, busca.volta || ""));
         log(`${busca.origem}>${busca.destino} ${busca.ida}: valor do Google ao longo do tempo: ${trajetoria.join(" -> ")}`);
         if (certa) return ultimo;
