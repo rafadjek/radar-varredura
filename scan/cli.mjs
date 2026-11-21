@@ -6,6 +6,7 @@ import { etapa, postar } from "./enviar.mjs";
 import { melhoresPares } from "./pares.mjs";
 import { buscar as buscarTudo, confirmarEmParalelo } from "./busca.mjs";
 import { verificar as verificarJanela } from "./verificar.mjs";
+import { agente as rodarAgente } from "./agente.mjs";
 import * as v from "./validar.mjs";
 
 const t0 = Date.now();
@@ -125,7 +126,10 @@ async function verificarCmd([job, origem, destino]) {
   await verificarJanela({ job, origem, destino, log, leitura });
 }
 
-const comandos = { verificar: verificarCmd, calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares, buscar: buscarCmd, "confirmar-pares": confirmarPares };
+// agente: fica pedindo trabalho ao Worker (PC do Rafael). Não termina sozinho; o process.exit abaixo só roda se ele cair.
+async function agenteCmd() { await rodarAgente({ log }); }
+
+const comandos = { agente: agenteCmd, verificar: verificarCmd, calendario, pares, confirmar, salvas, etapa: etapaCmd, "matriz-pares": matrizPares, buscar: buscarCmd, "confirmar-pares": confirmarPares };
 if (!comandos[comando]) { console.error("uso: cli.mjs calendario|pares|confirmar|salvas ..."); process.exit(2); }
 try { await comandos[comando](a); process.exit(0); }
 catch (e) { console.error("ERRO:", e.message); process.exit(1); }

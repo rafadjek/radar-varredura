@@ -25,13 +25,13 @@ export async function postar(caminho, corpo, { fetcher = fetch, env = process.en
 }
 
 // Lê do Worker (GET com o segredo), com as mesmas repetições do POST. Devolve o JSON.
-export async function pegar(caminho, { fetcher = fetch, env = process.env, esperar = dormir, tentativas = 3 } = {}) {
+export async function pegar(caminho, { fetcher = fetch, env = process.env, esperar = dormir, tentativas = 3, limiteMs = 30000 } = {}) {
   const base = env.WORKER_URL;
   if (!base) throw new Error("WORKER_URL não configurado");
   let ultimo;
   for (let t = 1; t <= tentativas; t++) {
     try {
-      const resp = await fetcher(base.replace(/\/$/, "") + caminho, { headers: { "x-ingest-secret": env.INGEST_SECRET || "" } });
+      const resp = await fetcher(base.replace(/\/$/, "") + caminho, { headers: { "x-ingest-secret": env.INGEST_SECRET || "" }, signal: AbortSignal.timeout(limiteMs) });
       if (resp.ok) return await resp.json();
       ultimo = new Error(`Worker respondeu ${resp.status}`);
       if (resp.status >= 400 && resp.status < 500 && resp.status !== 429) break;
