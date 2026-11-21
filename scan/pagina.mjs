@@ -8,7 +8,11 @@ export function rotaConfere(origem, destino) {
     const el = [...document.querySelectorAll("input")].find((e) => e.getBoundingClientRect().width > 0 && (e.getAttribute("aria-label") || "").startsWith(inicio));
     return el ? el.getAttribute("aria-label") : "";
   };
-  const confere = (texto, codigo) => cidades.includes(codigo) || new RegExp(`(^|[^A-Z])${codigo}([^A-Z]|$)`).test(texto);
+  // Rótulo de aeroporto traz o código ("São Paulo GRU"); o de cidade traz só o nome. Só rejeita quando há um código e ele é outro.
+  const confere = (texto, codigo) => {
+    const codigos = texto.match(/(^|[^A-Za-z])[A-Z]{3}(?![A-Za-z])/g) || [];
+    return cidades.includes(codigo) || !codigos.length || new RegExp(`(^|[^A-Z])${codigo}([^A-Z]|$)`).test(texto);
+  };
   return confere(rotulo("De onde"), origem) && confere(rotulo("Para onde"), destino);
 }
 
