@@ -29,7 +29,7 @@ export function melhoresPares(ida, volta, dias, margem = 0, quantos = 3) {
 // internacional), a ordem dele não diz nada: confirma até `maximo` pares espalhados em datas diferentes.
 // Caso normal (preços diferenciados): os 5 melhores. `ordenados` vem de melhoresPares, do mais barato ao mais caro.
 // `sinal` = posição que, se ainda estiver na faixa de empate, indica calendário chapado (padrão: a última do caso normal).
-export function paresParaConfirmar(ordenados, { normal = 5, maximo = 9, folga = 0.03, espaco = 3, sinal = normal - 1 } = {}) {
+export function paresParaConfirmar(ordenados, { normal = 5, maximo = 9, folga = 0.05, espaco = 3, sinal = normal - 1 } = {}) {
   if (ordenados.length <= normal) return ordenados;
   const limite = ordenados[0].total * (1 + folga);
   if (ordenados.length <= sinal || ordenados[sinal].total > limite) return ordenados.slice(0, normal);
