@@ -1,6 +1,8 @@
 name: salvas
 on:
   workflow_dispatch:
+    inputs:
+      origens: { description: "origens em JSON (padrão: todas as de rotas.json)", required: false, default: '["SAO","GRU","CGH","VCP"]' }
 
 permissions:
   contents: read
@@ -8,7 +10,7 @@ permissions:
 # Roda só no PC do Rafael (executor com a etiqueta pc-salvas, separado dos de busca): se o PC estiver
 # desligado, a rodada espera na fila; a rodada mais nova cancela a anterior para não acumular dias.
 concurrency:
-  group: salvas
+  group: salvas-${{ inputs.origens }}
   cancel-in-progress: true
 
 jobs:
@@ -19,7 +21,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        origem: [GRU, CGH, VCP]
+        origem: ${{ fromJSON(inputs.origens) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
