@@ -9,6 +9,7 @@ function temAba() {
 }
 // O Google disse com todas as letras que não há voo (rota sem operação, como SJK>GRU): repetir não adianta.
 function semVoos() {
+  if (!document.body) return false; // página ainda carregando
   const t = (document.body.innerText || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   return t.includes("nao ha nenhum voo para sua pesquisa");
 }
@@ -130,7 +131,7 @@ export async function lerCalendario(chrome, origem, destino, { log = () => {}, t
     for (let i = 0; i < 45 && !ok && !nenhum; i++) {
       await dormir(1000);
       ok = await chrome.avaliar(temAba);
-      if (!ok && i >= 3) nenhum = await chrome.avaliar(semVoos); // dá 3 s para a página assentar antes de acreditar
+      if (!ok && i >= 3) nenhum = await chrome.avaliar(semVoos).catch(() => false); // dá 3 s para a página assentar antes de acreditar
     }
     if (nenhum) { log(`${origem}>${destino}: o Google diz que não há voo nesta rota`); break; }
     if (!ok || !(await chrome.avaliar(abrirSeletor))) { log(`${origem}>${destino}: tentativa ${t} sem resultados do Google`); continue; }
