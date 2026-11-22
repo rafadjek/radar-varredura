@@ -8,7 +8,9 @@ import * as v from "./validar.mjs";
 // para a página ver os primeiros preços logo e o KV/D1 receberem poucas gravações.
 
 export const TAMANHO_LOTE = 12;
-export const ABAS_VERIFICAR = 6; // medido na F3.0: 6 abas leram tudo sem captcha (~5 s por par de vazão)
+// 3 abas (medido em 2026-11-22, BSB>SSA, 24 pares): com 6 abas a oferta de agência chega depois dos 20 s e 14 pares
+// ficaram em R$ 630 (o certo era 586); com 3 abas 23 pares leram 586, quase sempre pelo fim da rede, em 155 s (6 abas: 192 s).
+export const ABAS_VERIFICAR = 3;
 export const MIN_LIDOS = 12; // nunca para antes de ler pelo menos isso
 export const DESCONTO_MAX = 0.30; // a maior diferença vista entre a estimativa do calendário e o preço real de agência (VCP>REC: 1404 → 982)
 
