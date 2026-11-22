@@ -10,12 +10,13 @@ export const EXTRA_DIAS = 4; // a "sugestão" olha até margem + 4 dias além do
 const agora = () => new Date().toISOString();
 const avisar = (job, nome, detalhe) => etapa(job, nome, detalhe).catch(() => {});
 
-async function lerPerna({ job, origem, destino, sentido, log, leitura }) {
+async function lerPerna({ job, origem, destino, sentido, log, leitura, estado = { falhou: false } }) {
   const chrome = await abrirChrome();
   try {
     const [de, para] = sentido === "ida" ? [origem, destino] : [destino, origem];
-    const r = await lerCalendario(chrome, de, para, { log });
-    if (!r.cobertura) throw new Error(`sem preços de ${de} para ${para}`);
+    const r = await lerCalendario(chrome, de, para, { log, cancelado: () => estado.falhou });
+    if (!r.cobertura) { estado.falhou = true; throw new Error(`sem preços de ${de} para ${para}`); } // sem uma perna não há ida e volta: a outra para de ler
+    if (estado.falhou) { const e = new Error("leitura cancelada: a outra perna não tem voo"); e.cancelada = true; throw e; } // calendário pela metade não vai ao Worker
     await postar("/api/varredura/resultado", { job, tipo: "calendario", origem, destino, sentido, dias: r.dias, cobertura: r.cobertura, leitura, lidoEm: agora() });
     log(`${sentido} enviado: ${r.cobertura} dias${r.completo ? "" : " (cobertura incompleta)"}`);
     return r.dias;
@@ -66,11 +67,18 @@ export async function confirmarUmaPorVez({ job, origem, destino, pares, log, lei
 // Confirma os 3 melhores pares da janela pedida e o melhor par fora dela (a sugestão da página).
 export async function buscar({ job, origem, destino, dias, margem, log, leitura }) {
   await avisar(job, "ida");
+  const estado = { falhou: false };
   const [ida, volta] = await Promise.allSettled([
-    lerPerna({ job, origem, destino, sentido: "ida", log, leitura }),
-    lerPerna({ job, origem, destino, sentido: "volta", log, leitura }),
+    lerPerna({ job, origem, destino, sentido: "ida", log, leitura, estado }),
+    lerPerna({ job, origem, destino, sentido: "volta", log, leitura, estado }),
   ]);
-  for (const x of [ida, volta]) if (x.status === "rejected") { await avisar(job, "erro", x.reason.message.slice(0, 190)); throw x.reason; }
+  const caiu = [ida, volta].filter((x) => x.status === "rejected");
+  if (caiu.length) {
+    // a perna cancelada devolve o que já leu, e o erro útil é o da que não tem voo
+    const x = caiu.find((c) => !c.reason.cancelada) || caiu[0];
+    await avisar(job, "erro", x.reason.message.slice(0, 190));
+    throw x.reason;
+  }
   // Desde a F3.3 a busca só entrega o calendário. Os preços reais de agência vêm da verificação automática dos
   // melhores candidatos (GET /api/verificar?melhores=N, job verificar.yml): 6 abas, do mais barato ao mais caro,
   // parando cedo. Antes este job confirmava aqui, em levas sequenciais de 3.

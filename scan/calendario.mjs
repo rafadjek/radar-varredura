@@ -7,6 +7,11 @@ function temAba() {
   const n = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   return !![...document.querySelectorAll("[role=tab]")].find((e) => n(e.textContent).startsWith("menores pre"));
 }
+// O Google disse com todas as letras que não há voo (rota sem operação, como SJK>GRU): repetir não adianta.
+function semVoos() {
+  const t = (document.body.innerText || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return t.includes("nao ha nenhum voo para sua pesquisa");
+}
 function abrirSeletor() {
   const el = [...document.querySelectorAll("input")].find((e) => /partida/i.test(e.getAttribute("aria-label") || "") && e.getBoundingClientRect().width > 0);
   if (!el) return false;
@@ -106,17 +111,28 @@ async function esperarEstavel(chrome, limiteMs = 8000, iguais = 4) {
 
 // Calendário só ida de um sentido (origem -> destino), até ~11 meses. Soma o que cada tentativa trouxe.
 // Devolve { dias, cobertura, completo }.
-export async function lerCalendario(chrome, origem, destino, { log = () => {}, tentativas = 3, hoje = new Date() } = {}) {
+// `cancelado()` verdadeiro = outra parte da busca já falhou (ex.: a volta não tem voo), então ler mais não serve.
+// Repetir só vale enquanto traz dia novo: rota de poucos voos (ex.: SAO>SJK, 280 de 330 dias) nunca completa o
+// calendário, e repetir sem ganho gastava 3 leituras de ~2 min (e consultas ao Google) à toa.
+export async function lerCalendario(chrome, origem, destino, { log = () => {}, tentativas = 3, hoje = new Date(), cancelado = () => false } = {}) {
   const base = new Date(hoje.getTime() + 30 * 86400000).toISOString().slice(0, 10);
   const desde = hoje.toISOString().slice(0, 10);
   const dias = {};
   const lerTudo = async () => { for (const [iso, p] of await chrome.avaliar(lerCelulas)) if (p !== null) dias[iso] = p; };
   let completo = false;
   for (let t = 1; t <= tentativas && !completo; t++) {
+    if (cancelado()) { log(`${origem}>${destino}: leitura cancelada (a outra perna da busca falhou)`); break; }
+    const antesDaTentativa = Object.keys(dias).length;
     if (t > 1) await dormir(20000); // o Google estranha recargas seguidas
     await chrome.navegar(urlSoIda(origem, destino, base));
     let ok = false;
-    for (let i = 0; i < 45 && !ok; i++) { await dormir(1000); ok = await chrome.avaliar(temAba); }
+    let nenhum = false;
+    for (let i = 0; i < 45 && !ok && !nenhum; i++) {
+      await dormir(1000);
+      ok = await chrome.avaliar(temAba);
+      if (!ok && i >= 3) nenhum = await chrome.avaliar(semVoos); // dá 3 s para a página assentar antes de acreditar
+    }
+    if (nenhum) { log(`${origem}>${destino}: o Google diz que não há voo nesta rota`); break; }
     if (!ok || !(await chrome.avaliar(abrirSeletor))) { log(`${origem}>${destino}: tentativa ${t} sem resultados do Google`); continue; }
     if (!(await chrome.avaliar(rotaConfere, origem, destino))) { log(`${origem}>${destino}: a página do Google não é desta rota, tentativa ${t} descartada`); continue; }
     let n = await esperarEstavel(chrome, 15000, 6); // primeira tela: os preços dos 2 primeiros meses demoram
@@ -128,7 +144,10 @@ export async function lerCalendario(chrome, origem, destino, { log = () => {}, t
     }
     await lerTudo();
     // Reparo no mesmo calendário (sem recarregar o Google): volta ao início e reavança, pedindo de novo as janelas que faltam.
-    for (let reparo = 1; reparo <= 2 && mesesVazios(dias, desde).length; reparo++) {
+    let antesDoReparo = -1;
+    for (let reparo = 1; reparo <= 2 && mesesVazios(dias, desde).length && !cancelado(); reparo++) {
+      if (Object.keys(dias).length === antesDoReparo) { log(`${origem}>${destino}: o reparo não trouxe dia novo, parando`); break; }
+      antesDoReparo = Object.keys(dias).length;
       log(`${origem}>${destino}: reparo ${reparo}, meses vazios: ${mesesVazios(dias, desde).join(",")}`);
       for (let k = 0; k < 12 && (await chrome.avaliar(anterior)); k++) { await esperarEstavel(chrome, 5000, 3); await lerTudo(); }
       for (let k = 0; k < 12; k++) {
@@ -142,6 +161,7 @@ export async function lerCalendario(chrome, origem, destino, { log = () => {}, t
     const vazios = mesesVazios(dias, desde);
     completo = cobertura >= DIAS_ESPERADOS * COBERTURA_MINIMA && !vazios.length;
     log(`${origem}>${destino}: tentativa ${t}, ${cobertura} dias com preço${vazios.length ? `, meses vazios: ${vazios.join(",")}` : ""}`);
+    if (!completo && t > 1 && cobertura === antesDaTentativa) { log(`${origem}>${destino}: a releitura não trouxe dia novo, parando`); break; }
   }
   return { dias, cobertura: Object.keys(dias).length, completo };
 }
