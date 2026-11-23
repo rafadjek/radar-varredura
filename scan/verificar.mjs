@@ -58,7 +58,7 @@ export function criarLotes({ enviarLote, enviarUm, tamanho = TAMANHO_LOTE, esper
 
 // verificar <job> <origem> <destino>
 export async function verificar({ job, origem, destino, log, leitura, abas = Number(process.env.ABAS) || ABAS_VERIFICAR, pegarJob = pegar, enviar = postar, avisar = etapa, abrir = abrirNavegador, ler }) {
-  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  v.job(job); v.rota(origem, "origem"); v.rota(destino, "destino");
   const info = await pegarJob(`/api/varredura/job/${job}`);
   if (info.tipo !== "verificar" || info.origem !== origem || info.destino !== destino) throw new Error("job não é uma verificação desta rota");
   const pares = (info.pares || []).map((p) => { const [ida, volta = ""] = p.split("|"); v.data(ida, "ida"); if (volta) v.data(volta, "volta"); return { ida, volta }; });

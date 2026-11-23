@@ -11,7 +11,8 @@ export function rotaConfere(origem, destino) {
   // Rótulo de aeroporto traz o código ("São Paulo GRU"); o de cidade traz só o nome. Só rejeita quando há um código e ele é outro.
   const confere = (texto, codigo) => {
     const codigos = texto.match(/(^|[^A-Za-z])[A-Z]{3}(?![A-Za-z])/g) || [];
-    return cidades.includes(codigo) || !codigos.length || new RegExp(`(^|[^A-Z])${codigo}([^A-Z]|$)`).test(texto);
+    const lista = String(codigo).split(","); // vários aeroportos: basta o rótulo trazer um deles
+    return lista.some((c) => cidades.includes(c)) || !codigos.length || lista.some((c) => new RegExp(`(^|[^A-Z])${c}([^A-Z]|$)`).test(texto));
   };
   return confere(rotulo("De onde"), origem) && confere(rotulo("Para onde"), destino);
 }

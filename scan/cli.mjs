@@ -19,7 +19,7 @@ const leitura = process.env.RUNNER_ENVIRONMENT === "self-hosted" ? "pc" : "nuvem
 // calendario <job> <origem> <destino> <ida|volta> <arquivo.json>
 //   "ida" lê origem->destino; "volta" lê destino->origem. O resultado vai ao Worker na ordem da busca.
 async function calendario([job, origem, destino, sentido, arquivo]) {
-  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  v.job(job); v.rota(origem, "origem"); v.rota(destino, "destino");
   if (sentido !== "ida" && sentido !== "volta") throw new Error("entrada inválida: sentido");
   await etapa(job, sentido).catch((e) => log(`aviso: etapa não enviada (${e.message})`));
   const chrome = await abrirChrome();
@@ -51,7 +51,7 @@ function pares([dias, margem, arqIda, arqVolta]) {
 
 // confirmar <job> <origem> <destino> <ida> <volta|->
 async function confirmar([job, origem, destino, ida, volta]) {
-  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino"); v.data(ida, "ida");
+  v.job(job); v.rota(origem, "origem"); v.rota(destino, "destino"); v.data(ida, "ida");
   if (volta && volta !== "-") v.data(volta, "volta");
   await etapa(job, "confirmando").catch(() => {});
   const chrome = await abrirChrome();
@@ -107,13 +107,13 @@ function matrizPares([pares]) {
 
 // buscar <job> <origem> <destino> <dias> <margem>: a busca inteira num job só (ida e volta em paralelo e confirmações)
 async function buscarCmd([job, origem, destino, dias, margem]) {
-  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  v.job(job); v.rota(origem, "origem"); v.rota(destino, "destino");
   await buscarTudo({ job, origem, destino, dias: v.inteiro(dias, 0, 35, "dias"), margem: v.inteiro(margem, 0, 10, "margem"), log, leitura });
 }
 
 // confirmar-pares <job> <origem> <destino> "ida|volta,ida|volta" (até 4, em paralelo)
 async function confirmarPares([job, origem, destino, pares]) {
-  v.job(job); v.iata(origem, "origem"); v.iata(destino, "destino");
+  v.job(job); v.rota(origem, "origem"); v.rota(destino, "destino");
   const lista = v.pares(pares);
   await etapa(job, "confirmando").catch(() => {});
   try { await confirmarEmParalelo({ job, origem, destino, pares: lista, log, leitura }); }

@@ -34,12 +34,17 @@ const campoVarintEmpacotado = (campo, valores) => campoBytes(campo, concatBytes(
 
 const aeroporto = (codigo) => campoTexto(2, codigo); // Airport { string airport = 2; }
 
+// Origem e destino aceitam um código ("GRU", "SAO") ou vários separados por vírgula ("GRU,CGH,VCP"). Vários aeroportos =
+// o campo from_airport/to_airport REPETIDO (medido no Google Voos em 2026-11-22: GRU+CGH deu 37 voos a partir de R$ 940,
+// contra R$ 1.260 só com CGH). Já "GRU,CGH" dentro de um campo só o Google ignora, e a busca em texto também não aceita lista.
+const codigos = (lista) => String(lista).split(",").map((c) => c.trim()).filter(Boolean);
+
 function trechoVoo({ data, origem, destino }) {
-  // FlightData { date=2; from_airport=13; to_airport=14; }
+  // FlightData { date=2; repeated from_airport=13; repeated to_airport=14; }
   return concatBytes([
     campoTexto(2, data),
-    campoBytes(13, aeroporto(origem)),
-    campoBytes(14, aeroporto(destino)),
+    ...codigos(origem).map((c) => campoBytes(13, aeroporto(c))),
+    ...codigos(destino).map((c) => campoBytes(14, aeroporto(c))),
   ]);
 }
 

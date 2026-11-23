@@ -152,3 +152,31 @@ test("vizinhos: só datas do calendário, ainda não lidas, dentro da duração"
   assert.equal(r.length, 3);
   assert.ok(!r.some((p) => p.ida === "2027-03-11" && p.volta === "2027-03-20"));
 });
+
+// ---- vários aeroportos no endereço do Google (2026-11-22) ----
+import { construirTfs as tfsMulti } from "../scan/tfs.mjs";
+import * as validarMulti from "../scan/validar.mjs";
+
+test("tfs: um aeroporto gera o mesmo endereço de sempre (GRU>SSA só ida)", () => {
+  assert.equal(tfsMulti({ origem: "GRU", destino: "SSA", ida: "2026-12-22", volta: "" }), "GhoSCjIwMjYtMTItMjJqBRIDR1JVcgUSA1NTQUIBAUgBmAEC");
+});
+
+test("tfs: lista de aeroportos repete o campo de origem e de destino (e na volta troca os lados)", () => {
+  const texto = (b64) => Buffer.from(b64, "base64").toString("latin1");
+  const ida = texto(tfsMulti({ origem: "GRU,CGH", destino: "SSA", ida: "2026-12-22", volta: "" }));
+  assert.equal((ida.match(/GRU/g) || []).length, 1);
+  assert.equal((ida.match(/CGH/g) || []).length, 1);
+  assert.equal((ida.match(/SSA/g) || []).length, 1);
+  const comVolta = texto(tfsMulti({ origem: "GRU,CGH", destino: "SSA,REC", ida: "2026-12-22", volta: "2027-01-05" }));
+  // 2 trechos: cada aeroporto aparece uma vez como origem e uma como destino
+  for (const c of ["GRU", "CGH", "SSA", "REC"]) assert.equal((comVolta.match(new RegExp(c, "g")) || []).length, 2, c);
+});
+
+test("validar.rota: de 1 a 6 aeroportos de 3 letras maiúsculas", () => {
+  assert.equal(validarMulti.rota("GRU"), "GRU");
+  assert.equal(validarMulti.rota("CGH,GRU,VCP"), "CGH,GRU,VCP");
+  assert.throws(() => validarMulti.rota("GRU,"), /rota/);
+  assert.throws(() => validarMulti.rota("gru"), /rota/);
+  assert.throws(() => validarMulti.rota("AAA,BBB,CCC,DDD,EEE,FFF,GGG"), /rota/);
+  assert.throws(() => validarMulti.rota("GRU;rm"), /rota/);
+});
