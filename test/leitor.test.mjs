@@ -21,12 +21,12 @@ test("decidirFim: fim da resposta de preços + 1 s parado = definitivo ('rede')"
   assert.equal(decidirFim({ t: 12000, preco: 702, ultimaMudancaMs: 5000, fluxo: { iniciou: false, ativas: 0, fimHaMs: null } }), null, "a resposta nem começou");
 });
 
-test("decidirFim: plano B = regra antiga (mín. 20 s e 12 s sem mudar)", () => {
+test("decidirFim: plano B = regra de reserva (mín. 30 s e 12 s sem mudar)", () => {
   const f = (t, ult) => decidirFim({ t, preco: 702, ultimaMudancaMs: ult, fluxo: semFluxo });
-  assert.equal(f(19000, 1000), null);
-  assert.equal(f(20000, 8001), null);
-  assert.equal(f(20000, 8000), "estavel");
-  assert.equal(f(40000, 30000), null, "mudou há 10 s");
+  assert.equal(f(29000, 1000), null, "antes dos 30 s nunca vale (a oferta de agência chegou aos 23 s e até aos 47 s)");
+  assert.equal(f(30000, 18001), null);
+  assert.equal(f(30000, 18000), "estavel");
+  assert.equal(f(50000, 40000), null, "mudou há 10 s");
 });
 
 test("paginaBloqueada reconhece captcha/sorry e não confunde a busca normal", () => {
@@ -76,11 +76,11 @@ test("leitor: aceita pelo fim da rede, com o preço de agência (770 -> 702) e n
   assert.match(logs.join("\n"), /770@\d.*702@\d.*fim: rede/);
 });
 
-test("leitor: sem sinal da rede, cai na regra antiga (20 s + 12 s estável)", async () => {
+test("leitor: sem sinal da rede, cai na regra de reserva (30 s + 12 s estável)", async () => {
   const aba = abaFalsa({ preco: (dt) => (dt < 2000 ? null : 360) });
   const logs = [];
   assert.equal(await ler(aba, { log: (s) => logs.push(s) }), 360);
-  assert.match(logs.join("\n"), /fim: estavel, 20\./);
+  assert.match(logs.join("\n"), /fim: estavel, 30\./);
 });
 
 test("leitor: página 'sorry' interrompe com ErroBloqueio (disjuntor)", async () => {
@@ -160,8 +160,9 @@ test("pool: bloqueio numa aba para as outras, sobe o erro e fecha tudo", async (
 test("estadoDoFluxo: resposta que terminou por FALHA não vale como fim (cai no plano B)", () => {
   const aba = { gsr: { iniciou: true, ativas: new Set(), fimEm: 1000, falhou: true } };
   assert.deepEqual(estadoDoFluxo(aba, 9000), { iniciou: true, ativas: 0, fimHaMs: null });
-  assert.equal(decidirFim({ t: 9000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 9000) }), null, "só 9 s: ainda não vale a regra antiga");
-  assert.equal(decidirFim({ t: 25000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 25000) }), "estavel");
+  assert.equal(decidirFim({ t: 9000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 9000) }), null, "só 9 s: ainda não vale a regra de reserva");
+  assert.equal(decidirFim({ t: 25000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 25000) }), null, "25 s: antes do mínimo de 30 s");
+  assert.equal(decidirFim({ t: 31000, preco: 702, ultimaMudancaMs: 2000, fluxo: estadoDoFluxo(aba, 31000) }), "estavel");
 });
 
 test("pool: aba que não abre não derruba as outras", async () => {

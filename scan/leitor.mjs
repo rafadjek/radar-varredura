@@ -13,8 +13,10 @@ export const ABAS_PADRAO = 3;
 // oferta de agência (F3.0: em 18 de 20 pares o preço mudou depois do primeiro). Duas formas de ter certeza:
 //  - "rede": a resposta GetShoppingResults terminou (nunca mudou o preço depois: 19 de 19) e o preço está parado
 //    há `folgaMs` (a tela atualiza um instante depois do último quadro);
-//  - "estavel": regra antiga (mín. 20 s e 12 s sem mudar), para quando o fim da rede não aparece.
-export function decidirFim({ t, preco, ultimaMudancaMs, fluxo, minimoMs = 20000, estavelMs = 12000, folgaMs = 1000 }) {
+//  - "estavel": regra de reserva (mín. 30 s e 12 s sem mudar), para quando o fim da rede não aparece.
+// Reserva "estavel": mínimo 30 s (era 20). Medido em 2026-11-22 com 4 aeroportos de origem: 3 de 12 pares ficaram em
+// R$ 802 quando o certo era 775, porque a oferta de agência chegou aos 23 s, depois do mínimo de 20 s.
+export function decidirFim({ t, preco, ultimaMudancaMs, fluxo, minimoMs = 30000, estavelMs = 12000, folgaMs = 1000 }) {
   if (preco === null || preco === undefined) return null;
   if (fluxo.iniciou && fluxo.ativas === 0 && fluxo.fimHaMs !== null && fluxo.fimHaMs >= folgaMs && t - ultimaMudancaMs >= folgaMs) return "rede";
   if (t >= minimoMs && t - ultimaMudancaMs >= estavelMs) return "estavel";
