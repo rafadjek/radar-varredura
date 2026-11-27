@@ -7,8 +7,8 @@ on:
 permissions:
   contents: read
 
-# Roda só no PC do Rafael (executor com a etiqueta pc-salvas, separado dos de busca): se o PC estiver
-# desligado, a rodada espera na fila; a rodada mais nova cancela a anterior para não acumular dias.
+# Roda no executor hospedado do GitHub (desde 2026-11-27; antes ficava no PC do Rafael). Uma origem por vez, para ler
+# o Google devagar; a rodada mais nova cancela a anterior para não acumular dias.
 concurrency:
   group: salvas-${{ inputs.origens }}
   cancel-in-progress: true
@@ -28,7 +28,7 @@ jobs:
         with: { node-version: 22 }
       - shell: bash
         run: |
-          # Edge no lugar do Chrome (pre�o igual ao do PC no teste de 27/11/2026).
+          # Edge no lugar do Chrome (mesmo preço do PC no teste de 27/11/2026).
           command -v microsoft-edge >/dev/null || {
             curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-edge.gpg >/dev/null
             echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list >/dev/null
