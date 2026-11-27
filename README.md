@@ -4,6 +4,8 @@ Leitor do Google Voos usado pelo RadarPassagens (https://radarpassagens.pages.de
 
 Não há chave de API paga. **O repositório é privado** (desde 2026-11-21) porque ele usa executores self-hosted no PC do Rafael (`D:\actions-runner`, etiquetas `pc-brasil` e `pc-salvas`): o IP brasileiro residencial do PC enxerga as ofertas de agência que o IP do GitHub não vê. Quando o PC está desligado, o Worker manda os jobs para o GitHub hospedado (`ubuntu-latest`, plano B). Nenhum segredo fica no código (`WORKER_URL` e `INGEST_SECRET` são secrets do repositório; o batimento do PC lê os mesmos valores das variáveis de ambiente do usuário).
 
+**Plano B com Edge (desde 2026-11-27):** os fluxos `buscar`, `confirmar` e `verificar` instalam o Microsoft Edge no executor hospedado e usam `CHROME_BIN=microsoft-edge`. Teste do dia, mesmas rotas e datas: o Edge no GitHub (IP dos EUA) leu o mesmo preço do PC em 5 de 5 rotas lidas (GRU>JDO deu R$ 723 contra R$ 725); o que dava preço mais alto era o Chrome, não o IP. Ressalva: do IP dos EUA 2 de 7 rotas não leram na primeira rodada (GRU>BSB nunca leu em 3 tentativas), enquanto uma VM em São Paulo (datacenter Magalu) e o PC leram as 7. Falha aparece como cobertura baixa, nunca como preço inventado. `salvas.yml` continua só nos executores do PC. O rótulo "pode haver oferta menor" do site (leitura "nuvem") ficou desatualizado para este caso.
+
 - `.github/workflows/buscar.yml`: uma busca sob demanda (ida e volta em paralelo, depois confirma os 3 melhores pares).
 - `.github/workflows/confirmar.yml`: só confirma até 3 pares.
 - `.github/workflows/salvas.yml`: varre as rotas de `rotas.json` (disparado uma vez ao dia pelo Worker).
