@@ -30,7 +30,7 @@ jobs:
       - if: runner.environment == 'github-hosted'
         shell: bash
         run: |
-          # Edge no lugar do Chrome: em 27/11/2026, 5 de 5 rotas lidas no GitHub (IP dos EUA) deram o mesmo preço do PC; o Chrome lia mais caro.
+          # Edge no lugar do Chrome: em 27/11/2026, 5 de 5 rotas lidas no GitHub (IP dos EUA) deram o mesmo preÃ§o do PC; o Chrome lia mais caro.
           command -v microsoft-edge >/dev/null || {
             curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-edge.gpg >/dev/null
             echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-edge.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list >/dev/null
