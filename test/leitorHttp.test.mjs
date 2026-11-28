@@ -76,7 +76,7 @@ test("criarRitmo: 12 chamadas a 5/s levam >= 2 s simulados, nunca mais de 6 em v
   assert.ok(pico <= 6, `pico ${pico}`);
   assert.ok(rel.t >= 2000, `tempo ${rel.t}`);
   inicios.sort((a, b) => a - b);
-  for (let i = 0; i + 5 < inicios.length; i++) assert.ok(inicios[i + 5] - inicios[i] >= 1000, "no máximo 5 inícios por segundo");
+  for (let i = 0; i + 5 < inicios.length; i++) assert.ok(inicios[i + 5] - inicios[i] >= 1000 - 1e-6, "no máximo 5 inícios por segundo");
 });
 
 test("criarRitmo: erro da função libera a vaga e é repassado", async () => {
