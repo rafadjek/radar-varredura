@@ -20,3 +20,6 @@ Ler o Google Voos por navegador automatizado é de uso pessoal e volume baixo; s
 - `scan/verificar.mjs` + `.github/workflows/verificar.yml`: `cli verificar <job> <origem> <destino>` pega os pares do Worker (`GET /api/varredura/job/<id>`) e entrega os preços em lotes (`POST /api/varredura/lote`).
 - `scan/medir.mjs` e `scan/ab.mjs`: medições locais (gastam consultas ao Google; poucas e espaçadas). Resultados em `apoio/plans/2026-11-21-f30-medicao.md` (projeto monitor-milhas).
 - O perfil temporário do navegador é apagado ao fechar.
+
+## Busca rápida (2026-11-28)
+`scan/rapida.mjs` (job `rapida`, pego pelo agente do PC), `scan/leitorHttp.mjs` (leitura direta, ritmo, disjuntor), `scan/orcamento.mjs` (amostra e refino), `scan/aceite.mjs` (medições locais). Testes: `node --test test/` (84). O extrator só lê as listas de voos do bloco `ds:1`; ver a armadilha no CLAUDE.md do monitor-milhas.
