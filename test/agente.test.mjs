@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { agente, executarJob } from "../scan/agente.mjs";
+import { agente, executarJob, criarTipos } from "../scan/agente.mjs";
 import { ErroBloqueio } from "../scan/navegador.mjs";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -83,4 +83,31 @@ test("agente: Worker fora do ar = tenta de novo com pausa crescente (sem laço r
   assert.deepEqual(pausas.slice(0, 3), [4000, 8000, 16000]);
   assert.equal(avisos.filter((s) => /não consegui falar/.test(s)).length, 1, "só avisa na 1ª falha (não enche o log)");
   assert.ok(feito);
+});
+
+test("agente: job do tipo rapida chama o executor rapida com os campos do job", async () => {
+  const w = workerFalso([job("r-0123456789ab", "rapida", { origem: "GRU,CGH", destino: "POA", dias: 20, margem: 3 })]);
+  const chamadas = [];
+  const tipos = criarTipos({ rapida: async (args) => { chamadas.push(args); return { lidos: 1, confirmados: 0, modo: "http" }; } });
+  const logs = [];
+  await executarJob("r-0123456789ab", { pegarJson: w.pegarJson, avisar: async () => {}, log: (s) => logs.push(s), leitura: "pc", tipos });
+  assert.equal(chamadas.length, 1);
+  const a = chamadas[0];
+  assert.deepEqual([a.job, a.origem, a.destino, a.dias, a.margem, a.leitura], ["r-0123456789ab", "GRU,CGH", "POA", 20, 3, "pc"]);
+  assert.equal(typeof a.log, "function");
+  assert.ok(logs.some((l) => l.includes("concluído")));
+});
+
+test("agente: rapida sem margem usa 0 e falha do executor vira etapa erro", async () => {
+  const w = workerFalso([job("r-0123456789ac", "rapida", { dias: 10, margem: undefined })]);
+  const etapas = [];
+  let recebido;
+  const tipos = criarTipos({ rapida: async (args) => { recebido = args; throw new Error("quebrou"); } });
+  await executarJob("r-0123456789ac", { pegarJson: w.pegarJson, avisar: async (...a) => { etapas.push(a); }, log: () => {}, leitura: "pc", tipos });
+  assert.equal(recebido.margem, 0);
+  assert.deepEqual(etapas, [["r-0123456789ac", "erro", "quebrou"]]);
+});
+
+test("agente: o mapa padrão de tipos conhece rapida", () => {
+  assert.equal(typeof criarTipos().rapida, "function");
 });

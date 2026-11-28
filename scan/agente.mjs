@@ -2,21 +2,26 @@ import { dormir } from "./chrome.mjs";
 import { etapa, pegar } from "./enviar.mjs";
 import { verificar } from "./verificar.mjs";
 import { buscar } from "./busca.mjs";
+import { rapida } from "./rapida.mjs";
 
 // Agente residente do PC (Fase 3, modelo "puxa"): fica pedindo trabalho ao Worker (GET /api/varredura/proximo, espera
 // longa) e roda o job na hora, sem esperar o GitHub Actions entregá-lo (a fila do Actions chegou a atrasar 4 min sem
 // motivo; o agente pega em ~1 s). Só chamadas de SAÍDA do PC: nada é aberto para a internet. O Actions continua de
 // reserva: o Worker despacha para ele qualquer job que o agente não pegar em 25 s.
 //
-// Pega 2 tipos de job: "verificar" (preço real dos melhores candidatos) e "buscar" (calendário de uma rota nova).
+// Pega 3 tipos de job: "verificar" (preço real dos melhores candidatos), "buscar" (calendário de uma rota nova) e
+// "rapida" (leitura por orçamento: poucas datas pelo HTTP e confirmação no Edge).
 
 export const MAX_SIMULTANEOS = 2;
 export const ESPERA_S = 25;
 
-const TIPOS = {
+// `executores` só serve para os testes trocarem a leitura real por uma de mentira.
+export const criarTipos = (executores = {}) => ({
   verificar: (info, ctx) => verificar({ job: info.id, origem: info.origem, destino: info.destino, log: ctx.log, leitura: ctx.leitura }),
   buscar: (info, ctx) => buscar({ job: info.id, origem: info.origem, destino: info.destino, dias: info.dias || 0, margem: info.margem || 0, log: ctx.log, leitura: ctx.leitura }),
-};
+  rapida: (info, ctx) => (executores.rapida || rapida)({ job: info.id, origem: info.origem, destino: info.destino, dias: info.dias, margem: info.margem || 0, log: ctx.log, leitura: ctx.leitura }),
+});
+const TIPOS = criarTipos();
 
 // Roda um job que o Worker entregou. Falha vira etapa "erro" (o Worker libera a rota e a página segue com a estimativa).
 export async function executarJob(job, { pegarJson, avisar, log, leitura, tipos = TIPOS }) {
