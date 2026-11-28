@@ -25,14 +25,20 @@ export function extrairMenorPreco(html) {
   if (j < 0 || fim < 0) return { erro: "json" };
   let dados;
   try { dados = JSON.parse(bloco.slice(j + 5, fim).trim()); } catch { return { erro: "json" }; }
+  // Só as listas de VOOS contam: dados[2][0] ("melhores voos") e dados[3][0] ("outros voos"); em cada item o preço fica em
+  // item[1][0][1] e o token em item[1][1]. A página traz também sugestões de aeroportos próximos (ex.: "VCP, 84 km, R$ 268"):
+  // pegar o menor número da página inteira devolvia esse preço de outro aeroporto (medido em 28/11: CGH>POA deu 268 de
+  // Viracopos contra 489 dos voos reais; o Edge deu 441).
   let menor = null;
-  (function percorrer(n) {
-    if (!Array.isArray(n)) return;
-    if (n.length === 2 && Array.isArray(n[0]) && n[0][0] === null && typeof n[0][1] === "number" && typeof n[1] === "string" && n[1].length > 20) {
-      if (menor === null || n[0][1] < menor) menor = n[0][1];
+  for (const grupo of [2, 3]) {
+    const lista = dados?.[grupo]?.[0];
+    if (!Array.isArray(lista)) continue;
+    for (const item of lista) {
+      const oferta = item?.[1];
+      const preco = oferta?.[0]?.[1];
+      if (Array.isArray(oferta) && oferta[0]?.[0] === null && typeof preco === "number" && typeof oferta[1] === "string" && oferta[1].length > 20 && (menor === null || preco < menor)) menor = preco;
     }
-    n.forEach(percorrer);
-  })(dados);
+  }
   return menor === null ? { erro: "sem_precos" } : { preco: menor };
 }
 
@@ -81,7 +87,7 @@ export function criarRitmo({ porSegundo = 5, concorrencia = 6, jitterMs = [100, 
 export const estadoEmMemoria = () => { let guardado = null; return { ler: () => guardado, gravar: (o) => { guardado = o; } }; };
 
 // Guarda o cooldown em arquivo para sobreviver a reiniciar o agente. Se não der para gravar (ex.: sem a pasta), vale só em memória.
-export function estadoEmArquivo(caminho = process.env.RADAR_HTTP_COOLDOWN || "D:\Temp\radar-http-cooldown.json") {
+export function estadoEmArquivo(caminho = process.env.RADAR_HTTP_COOLDOWN || "D:\\Temp\\radar-http-cooldown.json") {
   let memoria = null;
   return {
     ler() { try { return JSON.parse(readFileSync(caminho, "utf8")); } catch { return memoria; } },

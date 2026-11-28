@@ -6,8 +6,8 @@ import { extrairMenorPreco, lerParHttp, criarRitmo, criarDisjuntor, estadoEmMemo
 const fix = (n) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url), "utf8");
 const resposta = (texto, extra = {}) => ({ status: 200, url: "https://www.google.com/travel/flights?x=1", text: async () => texto, ...extra });
 
-test("extrairMenorPreco: menor preço da fixture, ignorando tokens curtos e nulos", () => {
-  assert.deepEqual(extrairMenorPreco(fix("ds1-ok.html")), { preco: 389 });
+test("extrairMenorPreco: menor preço dos VOOS, ignorando sugestão de aeroporto próximo (VCP 268), token curto e nulos", () => {
+  assert.deepEqual(extrairMenorPreco(fix("ds1-ok.html")), { preco: 489 });
 });
 
 test("extrairMenorPreco: erros classificados", () => {
@@ -21,7 +21,7 @@ test("lerParHttp: monta a URL com tfs e parâmetros fixos e devolve o preço", a
   let pedido;
   const buscar = async (url, init) => { pedido = { url, init }; return resposta(fix("ds1-ok.html")); };
   const r = await lerParHttp({ origem: "GRU,CGH", destino: "POA", ida: "2027-02-10", volta: "2027-03-02" }, { buscar });
-  assert.deepEqual(r, { preco: 389 });
+  assert.deepEqual(r, { preco: 489 });
   assert.match(pedido.url, /^https:\/\/www\.google\.com\/travel\/flights\?tfs=.+&hl=pt-BR&gl=BR&curr=BRL$/);
   assert.equal(pedido.init.headers["accept-language"].startsWith("pt-BR"), true);
   assert.equal(pedido.init.headers.cookie, "CONSENT=YES+cb");
@@ -118,3 +118,19 @@ test("criarDisjuntor: cooldown de 90 min e estado sobrevive a reiniciar", () => 
   for (let i = 0; i < 7; i++) d.registrar(false);
   assert.equal(d.aberto(), false);
 });
+
+test("estadoEmArquivo: o cooldown é gravado e lido do arquivo (caminho com barras corretas)", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const { estadoEmArquivo } = await import("../scan/leitorHttp.mjs");
+  const pasta = mkdtempSync(join(tmpdir(), "cooldown-"));
+  try {
+    const caminho = join(pasta, "estado.json");
+    const e1 = estadoEmArquivo(caminho);
+    assert.equal(e1.ler(), null);
+    e1.gravar({ ate: 1234567890 });
+    assert.deepEqual(estadoEmArquivo(caminho).ler(), { ate: 1234567890 });
+  } finally { rmSync(pasta, { recursive: true, force: true }); }
+});
+
